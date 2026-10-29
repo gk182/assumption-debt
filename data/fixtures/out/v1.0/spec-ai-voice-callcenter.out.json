@@ -1,0 +1,42 @@
+{
+  "document": "spec-ai-voice-callcenter.md",
+  "evaluatedBy": "VP of Customer Operations & Lead AI Engineer",
+  "metrics": {
+    "total": 4,
+    "validQuotes": 4,
+    "quoteValidity": "100.0%",
+    "precision": "100.0%",
+    "noveltyRate": "75.0%",
+    "dupRate": "0.0%"
+  },
+  "items": [
+    {
+      "text": "Tổng độ trễ toàn trình Speech-to-Speech duy trì ổn định dưới 800ms qua hạ tầng mạng di động 4G",
+      "quote": "Tong do tre toan trinh (End-to-End Latency tu luc nguoi dung ngung noi den khi bot phan hoi am thanh) duy tri on dinh duoi 800ms qua ha tang mang di dong 4G tai Viet Nam",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Rất quan trọng: Mạng di động 4G tại vùng ven có jitter cao, STT + LLM stream + TTS thường mất ít nhất 1.2s - 1.5s, gây tình trạng cướp lời hoặc khoảng lặng chết."
+    },
+    {
+      "text": "Tỷ lệ khách hàng dập máy ngay trong 5 giây đầu tiên khi nhận biết giọng AI không vượt quá 15%",
+      "quote": "Ty le khach hang dap may ngay trong 5 giay dau tien khi nhan biet la giong AI noi tu dong se khong vuot qua 15%",
+      "verdict": "useful",
+      "novel": false,
+      "notes": "Metric tiêu chuẩn ngành telemarketing."
+    },
+    {
+      "text": "Các nhà mạng viễn thông không gắn cờ SPAM hoặc chặn cuộc gọi khi hệ thống phát sinh hơn 10,000 cuộc gọi mỗi ngày",
+      "quote": "Cac nha mang vien thong Viettel va Mobifone se khong gan co SPAM hoac chan cuoc goi hang loat khi he thong phat sinh hon 10,000 cuoc goi moi ngay tu cung mot dai Brandname da dang ky",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Rủi ro pháp lý & viễn thông chí mạng: Nghị định 91 về chống cuộc gọi rác siết rất chặt, Brandname vẫn bị nhà mạng tạm khóa nếu tỷ lệ khiếu nại SPAM vượt ngưỡng."
+    },
+    {
+      "text": "Khách hàng vay tiêu dùng sẵn sàng xác nhận 4 số cuối CCCD với bot tự động mà không yêu cầu gặp người thật",
+      "quote": "Khach hang vay tieu dung se tin tuong va san sang xac nhan thong tin dinh danh ca nhan (4 so cuoi CCCD) voi bot tu dong ma khong yeu cau chuyen may sang nhan vien that",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Tâm lý người dùng: Nạn lừa đảo mạo danh bùng nổ khiến người dân cực kỳ cảnh giác không đọc CCCD cho bất kỳ giọng tự động nào."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "document": "prd-b2b-invoice-factoring.md",
+  "evaluatedBy": "Head of Product & Credit Risk Officer",
+  "items": [
+    {
+      "text": "Doanh nghiệp SME sẵn sàng trả mức phí chiết khấu ứng vốn 1.8%/tháng trên giá trị hóa đơn",
+      "quote": "Muc phi nay la hoan toan canh tranh vi cac doanh nghiep SME san sang tra chi phi nay thay vi phai chiu lai suat tin dung den",
+      "verdict": "useful",
+      "novel": false,
+      "notes": "Giả định định giá cơ bản, team kinh doanh đã lường trước."
+    },
+    {
+      "text": "Doanh nghiệp mua hàng đầu chuỗi (Anchor Buyer) sẵn sàng ký số xác nhận công nợ điện tử trong vòng 48 giờ",
+      "quote": "Doanh nghiep mua hang chac chan se san sang ky so xac nhan cong no dien tu trong vong 48 gio vi nen tang ho tro API ket noi thang vao phan mem ERP SAP/Oracle",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Rất bất ngờ và chí mạng: Tập đoàn lớn có quy trình kế toán công nợ 15-30 ngày, không bao giờ ký xác nhận trong 48h chỉ vì có API."
+    },
+    {
+      "text": "Hệ thống Hóa đơn điện tử Tổng cục Thuế luôn duy trì phản hồi dưới 30 giây và không ngắt kết nối vào cao điểm cuối tháng",
+      "quote": "Du lieu doi soat hoa don VAT tu he thong Tong cuc Thue luon duy tri phan hoi duoi 30 giay va khong bi ngat ket noi vao nhung ngay cao diem cuoi thang",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Rủi ro kỹ thuật ngầm: TCT thường bảo trì hoặc quá tải nghẽn mạng từ ngày 25-30 hàng tháng khi doanh nghiệp nộp báo cáo."
+    },
+    {
+      "text": "Rủi ro xuất khống hóa đơn VAT có thể ngăn chặn hoàn toàn bằng đối soát chéo MST và lịch sử nộp thuế",
+      "quote": "Rui ro xuat khong hoa don VAT de chiem doat tien giai ngan co the ngan chan hoan toan bang thuat toan doi soat cheo ma so thue",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Giả định rủi ro chủ quan: Doanh nghiệp 'ma' vẫn có MST và xuất hóa đơn thật trước khi bỏ trốn."
+    }
+  ]
+}

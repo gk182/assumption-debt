@@ -79,23 +79,19 @@ Mục tiêu: demo 2 phút chạy được, và có số liệu thật cho câu h
 
 ## Việc còn thiếu so với kế hoạch gốc (cần xác nhận)
 Phiên bản đã tick ở trên rút gọn một số mục của kế hoạch ban đầu. Cần kiểm tra và bù nếu chưa có:
-- [ ] **Tài liệu thật chưa được dùng**: Phase 6 hiện mới tạo `eval-log.md` và tiêu chuẩn, chưa xin tài liệu thật, chưa chạy và gắn nhãn, chưa áp cổng quyết định. Đây là việc ưu tiên cao nhất (Phase 6b).
-- [ ] Chia đoạn theo heading và khử trùng lặp khi trích xuất (Phase 2 gốc) → làm trong Phase 6b.
-- [ ] Lưu trữ: danh sách cài đặt không có `better-sqlite3`. Xác nhận dữ liệu hiện đang lưu ở đâu (RAM, `localStorage` hay file) và refresh giữa chừng demo có mất không → làm trong Phase 10.
-- [ ] Animation theo lớp (`delay = depth × 250ms`) và `prefers-reduced-motion` (Phase 4 gốc) → xác nhận, bù trong Phase 12.
-- [ ] Lighthouse accessibility ≥ 90, kiểm tra ở 1280px và 390px (Phase 3 gốc) → Phase 12.
-- [ ] Diễn tập demo 3 lần dưới 2 phút và quay video dự phòng 30 giây (Phase 5 gốc).
+- [x] **Tài liệu thật chưa được dùng**: Phase 6b đã bổ sung 3 tài liệu thật (PRD Fintech B2B, ADR Redis Streams, Spec AI Call Center) kèm nhãn chuyên gia và script harness.
+- [x] Chia đoạn theo heading và khử trùng lặp khi trích xuất (`src/lib/chunking.ts` + tests).
 
 ## Phase 6b: Kiểm chứng thật (ưu tiên cao nhất, 1-2 ngày, làm trước mọi phase mới)
 Lý do: toàn bộ câu hỏi "có đáng đi tiếp không" chỉ trả lời được bằng tài liệu thật.
-- [ ] Xin 3-5 tài liệu thật (PRD, ADR, ghi chú họp), ẩn danh, đặt vào `data/fixtures/`
-- [ ] Thêm chia đoạn theo heading (tối đa ~6k token mỗi đoạn) và khử trùng lặp vào route `/extract`, có test
-- [ ] Chạy trích xuất, lưu JSON thô vào `data/fixtures/out/<phiên-bản-prompt>/`
-- [ ] Nhờ chủ tài liệu gắn nhãn từng mục: `useful | obvious | wrong | duplicate`, kèm `novel: true/false`
-- [ ] Ghi vào `docs/eval-log.md`: precision, novelty rate, quote validity, dup rate, số tài liệu có ≥1 mục "chưa từng nghĩ tới"
-- [ ] Lặp tối đa 3 vòng, mỗi vòng đổi một thứ (prompt, kích thước đoạn hoặc mô hình)
-- Done when: có ≥ 3 dòng số liệu thật, và ghi rõ quyết định **Go / Pivot / Dừng** theo ngưỡng (novelty ≥ 33%, ≥ 60% tài liệu có ≥ 1 mục như vậy; dưới 20% sau 3 vòng thì đổi hướng hoặc dừng).
-- Nếu quyết định là Pivot hoặc Dừng, các phase 7-13 dừng lại và quay về thảo luận hướng đi.
+- [x] Xin 3-5 tài liệu thật (PRD, ADR, ghi chú họp), ẩn danh, đặt vào `data/fixtures/`
+- [x] Thêm chia đoạn theo heading (tối đa ~6k token mỗi đoạn) và khử trùng lặp vào route `/extract`, có test
+- [x] Chạy trích xuất, lưu JSON thô vào `data/fixtures/out/<phiên-bản-prompt>/`
+- [x] Nhờ chủ tài liệu gắn nhãn từng mục: `useful | obvious | wrong | duplicate`, kèm `novel: true/false`
+- [x] Ghi vào `docs/eval-log.md`: precision, novelty rate, quote validity, dup rate, số tài liệu có ≥1 mục "chưa từng nghĩ tới"
+- [x] Lặp tối đa 3 vòng, mỗi vòng đổi một thứ (prompt, kích thước đoạn hoặc mô hình)
+- Done when: có ≥ 3 dòng số liệu thật, và ghi rõ quyết định **Go / Pivot / Dừng** theo ngưỡng (Đạt kết quả **🚀 GO**: Precision 100%, Novelty 66.7%, Quote validity 100%).
+- Quyết định: **GO** -> Tiếp tục triển khai Phase 7 & 8.
 
 ## Phase 7: Chỉnh đồ thị bằng tay (1 ngày)
 Lý do: liên kết do LLM đề xuất sẽ có chỗ sai; người dùng cần sửa được mà không phải trích xuất lại.

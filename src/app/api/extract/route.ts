@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { filterHallucinations, ExtractionOutput } from '@/lib/schema';
 import { extractWithMultiLLM, LLMProvider, PROVIDER_CONFIGS } from '@/lib/llm';
+import {
+  chunkDocumentByHeadings,
+  mergeExtractionOutputs,
+  deduplicateAssumptions,
+  estimateTokens
+} from '@/lib/chunking';
 
 export async function POST(req: NextRequest) {
   try {
@@ -56,26 +62,61 @@ export async function POST(req: NextRequest) {
       ? provider
       : (process.env.DEFAULT_LLM_PROVIDER as LLMProvider)) || 'gemini';
 
-    const rawOutput = await extractWithMultiLLM({
-      documentText,
-      provider: selectedProvider,
-      model,
-      apiKey
-    });
-
-    // Apply hallucination guard: verify quotes are substrings of the input document
-    const { filtered, droppedCount } = filterHallucinations(rawOutput, documentText);
-
     const providerConfig = PROVIDER_CONFIGS[selectedProvider];
     const usedModel = model || providerConfig?.defaultModel;
+
+    // Split document into chunks if it exceeds ~4,000 tokens (approx 15,000 characters)
+    const chunks = chunkDocumentByHeadings(documentText, 4000);
+    let finalOutput: ExtractionOutput;
+    let totalDroppedHallucinations = 0;
+    let totalDuplicatesDropped = 0;
+
+    if (chunks.length > 1) {
+      const chunkOutputs: ExtractionOutput[] = [];
+      for (const ch of chunks) {
+        const rawChunk = await extractWithMultiLLM({
+          documentText: ch.content,
+          provider: selectedProvider,
+          model,
+          apiKey
+        });
+        const { filtered, droppedCount } = filterHallucinations(rawChunk, ch.content);
+        totalDroppedHallucinations += droppedCount;
+        chunkOutputs.push(filtered);
+      }
+      const merged = mergeExtractionOutputs(chunkOutputs);
+      const { deduplicated, duplicatesDropped } = deduplicateAssumptions(merged.assumptions);
+      totalDuplicatesDropped = duplicatesDropped;
+      finalOutput = {
+        ...merged,
+        assumptions: deduplicated
+      };
+    } else {
+      const rawOutput = await extractWithMultiLLM({
+        documentText,
+        provider: selectedProvider,
+        model,
+        apiKey
+      });
+      const { filtered, droppedCount } = filterHallucinations(rawOutput, documentText);
+      totalDroppedHallucinations = droppedCount;
+      const { deduplicated, duplicatesDropped } = deduplicateAssumptions(filtered.assumptions);
+      totalDuplicatesDropped = duplicatesDropped;
+      finalOutput = {
+        ...filtered,
+        assumptions: deduplicated
+      };
+    }
 
     return NextResponse.json({
       mode: 'product_live',
       provider: selectedProvider,
       model: usedModel,
       message: `Trích xuất thành công bằng ${providerConfig?.name || selectedProvider} (${usedModel}).`,
-      data: filtered,
-      hallucinationsDropped: droppedCount
+      data: finalOutput,
+      hallucinationsDropped: totalDroppedHallucinations,
+      duplicatesDropped: totalDuplicatesDropped,
+      chunksProcessed: chunks.length
     });
   } catch (error: unknown) {
     console.error('Extraction API error:', error);

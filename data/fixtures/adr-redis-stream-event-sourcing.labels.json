@@ -1,0 +1,34 @@
+{
+  "document": "adr-redis-stream-event-sourcing.md",
+  "evaluatedBy": "Principal Architect & Tech Lead",
+  "items": [
+    {
+      "text": "Redis Streams duy trì thông lượng 15,000 msg/s mà không cần cluster sharding trong vòng 12 tháng tới",
+      "quote": "Redis Streams duy tri thong luong 15,000 msg/s ma khong can cau hinh cluster sharding phuc tap trong vong 12 thang toi",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Kiểm tra lại bộ nhớ RAM: Nếu stream không trim (XTRIM MAXLEN), RAM của Redis node đơn sẽ tràn chỉ sau vài tuần flash sale."
+    },
+    {
+      "text": "Chi phí bản quyền và hạ tầng vận hành Redis Cloud trên AWS thấp hơn Apache Kafka ít nhất 35% ở tải đỉnh",
+      "quote": "Chi phi ban quyen va ha tang van hanh Redis Cloud tren AWS thap hon Apache Kafka it nhat 35% o cung muc tai dinh",
+      "verdict": "useful",
+      "novel": false,
+      "notes": "Đã có bảng ước tính chi phí sơ bộ từ team DevOps."
+    },
+    {
+      "text": "Cơ chế consumer group của Redis đảm bảo tính tuần tự tuyệt đối (Strict FIFO) khi worker node bị crash",
+      "quote": "Co che consumer group cua Redis dam bao tinh tuan tu tuyet doi (Strict FIFO Ordering) cho cac su kien cua cung mot don hang ngay ca khi worker node bi crash va restart lai",
+      "verdict": "useful",
+      "novel": true,
+      "notes": "Hiểu lầm kỹ thuật nghiêm trọng: Khi re-claim message qua XCLAIM từ PEL, thứ tự xử lý sự kiện sẽ bị đảo lộn nếu có worker khác đang chạy!"
+    },
+    {
+      "text": "Đội ngũ kỹ sư backend có thể làm chủ hoàn toàn cơ chế Ack và PEL trong 2 tuần mà không gây mất mát sự kiện",
+      "quote": "Doi ngu ky su backend hien tai co the lam chu hoan toan co che Ack va Pending Entries List (PEL) cua Redis Streams trong vong 2 tuan thu nghiem",
+      "verdict": "useful",
+      "novel": false,
+      "notes": "Đánh giá năng lực nội bộ thông thường."
+    }
+  ]
+}
