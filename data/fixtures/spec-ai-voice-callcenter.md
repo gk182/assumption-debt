@@ -17,3 +17,4 @@ SIP Trunking Viễn thông -> Audio Streaming (WebRTC) -> Speech-to-Text (STT) -
 Sprint 1: Kết nối hạ tầng SIP Trunking viễn thông và kiểm tra độ trễ âm thanh WebRTC.
 Sprint 2: Thử nghiệm kịch bản nhắc hẹn thanh toán trên nhóm 500 khách hàng mẫu.
 Sprint 3: Xây dựng Dashboard giám sát tỷ lệ ngắt máy và độ chính xác nhận diện giọng nói tiếng Việt các vùng miền.
+

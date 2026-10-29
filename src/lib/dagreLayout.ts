@@ -2,44 +2,91 @@ import dagre from 'dagre';
 import { Node, Edge, MarkerType, Position } from '@xyflow/react';
 import { GraphNode, GraphEdge } from './types';
 
+export interface LayoutOptions {
+  direction?: 'LR' | 'TB';
+  includeProjectRoot?: boolean;
+  projectName?: string;
+  isCompact?: boolean;
+}
+
 export function getLayoutedElements(
   nodes: GraphNode[],
   edges: GraphEdge[],
-  direction: 'LR' | 'TB' = 'LR'
+  options: LayoutOptions = {}
 ): { flowNodes: Node[]; flowEdges: Edge[] } {
+  const {
+    direction = 'LR',
+    includeProjectRoot = true,
+    projectName = 'Tài liệu Dự án',
+    isCompact = false
+  } = options;
+
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
+  // Compact, intentional spacing so graphs fit naturally without microscopic zoom-out
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: 80, // Khoảng cách dọc rộng rãi giữa các hàng node trong cùng rank
-    ranksep: 220, // Khoảng cách ngang thoáng đãng giữa các cột (Giả định -> Quyết định -> Task)
-    marginx: 60,
-    marginy: 60
+    nodesep: isCompact ? 28 : 36, // Khoảng cách dọc vừa vặn, không bị rời rạc
+    ranksep: isCompact ? 90 : 120, // Khoảng cách ngang giữa các rank gọn gàng
+    marginx: 40,
+    marginy: 40
   });
 
   const nodeDimensions: Record<string, { width: number; height: number }> = {
-    assumption: { width: 320, height: 210 },
-    decision: { width: 280, height: 130 },
-    task: { width: 240, height: 100 }
+    document: { width: 280, height: 145 },
+    assumption: { width: 290, height: isCompact ? 110 : 165 },
+    decision: { width: 250, height: isCompact ? 80 : 110 },
+    task: { width: 220, height: isCompact ? 70 : 85 }
   };
 
-  for (const node of nodes) {
-    const dim = nodeDimensions[node.type] || { width: 280, height: 140 };
+  // 1. Prepare working node list (include virtual Document Root Node if enabled)
+  const workingNodes: Array<GraphNode | { id: string; type: string; text: string }> = [...nodes];
+  const workingEdges: Array<GraphEdge | { from: string; to: string; relation: string; isRootEdge?: boolean }> = [
+    ...edges
+  ];
+
+  const hasAssumptions = nodes.some((n) => n.type === 'assumption');
+
+  if (includeProjectRoot && hasAssumptions) {
+    const rootId = 'PRD_ROOT';
+    workingNodes.unshift({
+      id: rootId,
+      type: 'document',
+      text: projectName
+    });
+
+    // Connect root to all assumptions that don't have another assumption prerequisite
+    const assumptions = nodes.filter((n) => n.type === 'assumption');
+    for (const a of assumptions) {
+      workingEdges.push({
+        from: a.id,
+        to: rootId,
+        relation: 'originates_from',
+        isRootEdge: true
+      });
+    }
+  }
+
+  // 2. Register nodes in Dagre
+  for (const node of workingNodes) {
+    const dim = nodeDimensions[node.type] || { width: 250, height: 110 };
     dagreGraph.setNode(node.id, { width: dim.width, height: dim.height });
   }
 
-  // Thiết lập cạnh trong Dagre: từ dependency (edge.to) sang dependent (edge.from)
-  // để Dagre phân tầng từ trái sang phải: Giả định (Trái) -> Quyết định (Giữa) -> Task (Phải)
-  for (const edge of edges) {
-    dagreGraph.setEdge(edge.to, edge.from);
+  // 3. Register edges in Dagre: from dependency (edge.to) to dependent (edge.from)
+  for (const edge of workingEdges) {
+    if (edge.to && edge.from) {
+      dagreGraph.setEdge(edge.to, edge.from);
+    }
   }
 
   dagre.layout(dagreGraph);
 
-  const flowNodes: Node[] = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
-    const dim = nodeDimensions[node.type] || { width: 280, height: 140 };
+  // 4. Transform to React Flow Nodes
+  const flowNodes: Node[] = workingNodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id) || { x: 0, y: 0 };
+    const dim = nodeDimensions[node.type] || { width: 250, height: 110 };
 
     return {
       id: node.id,
@@ -50,30 +97,54 @@ export function getLayoutedElements(
       },
       sourcePosition: Position.Right,
       targetPosition: Position.Left,
-      data: { node }
+      data: { node, isCompact }
     };
   });
 
-  const flowEdges: Edge[] = edges.map((edge, idx) => ({
-    id: `e-${edge.to}-${edge.from}-${idx}`,
-    // Nút nguồn bên TRÁI (e.g. A1) nối từ Handle bên PHẢI (Position.Right)
-    source: edge.to,
-    // Nút đích bên PHẢI (e.g. D1) nối vào Handle bên TRÁI (Position.Left)
-    target: edge.from,
-    type: 'bezier',
-    animated: false,
-    // Mũi tên trỏ về phía Dependency (ví dụ D1 phụ thuộc vào A1 -> mũi tên trỏ về A1)
-    markerStart: {
-      type: MarkerType.ArrowClosed,
-      width: 14,
-      height: 14,
-      color: '#64748b'
-    },
-    style: {
-      stroke: '#94a3b8',
-      strokeWidth: 2
+  // 5. Transform to React Flow Edges
+  const flowEdges: Edge[] = workingEdges.map((edge, idx) => {
+    const isRootEdge = (edge as any).isRootEdge;
+
+    if (isRootEdge) {
+      return {
+        id: `e-root-${edge.from}-${idx}`,
+        source: edge.to, // PRD_ROOT
+        target: edge.from, // A1, A2, etc.
+        type: 'bezier',
+        animated: true,
+        markerStart: {
+          type: MarkerType.ArrowClosed,
+          width: 10,
+          height: 10,
+          color: '#f59e0b'
+        },
+        style: {
+          stroke: '#f59e0b',
+          strokeWidth: 2,
+          strokeDasharray: '4 4',
+          opacity: 0.75
+        }
+      };
     }
-  }));
+
+    return {
+      id: `e-${edge.to}-${edge.from}-${idx}`,
+      source: edge.to, // Prerequisite (Left handle Position.Right)
+      target: edge.from, // Dependent (Right handle Position.Left)
+      type: 'bezier',
+      animated: false,
+      markerStart: {
+        type: MarkerType.ArrowClosed,
+        width: 13,
+        height: 13,
+        color: '#64748b'
+      },
+      style: {
+        stroke: '#94a3b8',
+        strokeWidth: 2
+      }
+    };
+  });
 
   return { flowNodes, flowEdges };
 }

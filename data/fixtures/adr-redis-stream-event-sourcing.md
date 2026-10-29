@@ -17,3 +17,4 @@ Thay vì triển khai cụm Apache Kafka phức tạp và tốn kém tài nguyê
 Sprint 1: Cấu hình Redis Streams trên môi trường Staging và viết module Transactional Outbox Worker.
 Sprint 2: Viết Consumer xử lý sự kiện trừ kho (Inventory) và thanh toán (Payment).
 Sprint 3: Chạy bài kiểm thử tải mô phỏng 10,000 đơn hàng đồng thời.
+

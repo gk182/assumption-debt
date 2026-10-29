@@ -21,3 +21,4 @@ Sprint 3: Xây dựng luồng crawler/API đối soát tự động trạng thá
 ## 5. Phòng chống gian lận & Hóa đơn khống
 Rủi ro xuất khống hóa đơn VAT để chiếm đoạt tiền giải ngân có thể ngăn chặn hoàn toàn bằng thuật toán đối soát chéo mã số thuế và kiểm tra lịch sử nộp thuế 12 tháng qua.
 Sprint 4: Xây dựng mô hình chấm điểm tín nhiệm doanh nghiệp SME dựa trên dữ liệu thuế và ngân hàng.
+

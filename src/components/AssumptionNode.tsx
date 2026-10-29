@@ -8,10 +8,13 @@ import { AlertCircle, CheckCircle2, XCircle, ShieldAlert, Quote } from 'lucide-r
 
 interface CustomData {
   node: AssumptionNodeType;
+  isCompact?: boolean;
 }
 
 export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) => {
-  const node = (data as unknown as CustomData).node;
+  const customData = data as unknown as CustomData;
+  const node = customData.node;
+  const isCompact = !!customData.isCompact;
   const { selectedNodeId, cascade } = useGraphStore();
 
   const isSelected = selected || selectedNodeId === id;
@@ -56,7 +59,9 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
 
   return (
     <div
-      className={`relative w-[300px] rounded-xl p-3.5 shadow-sm border-2 border-dashed transition-all duration-200 ${
+      className={`relative w-[290px] rounded-xl ${
+        isCompact ? 'p-2.5' : 'p-3'
+      } shadow-sm border-2 border-dashed transition-all duration-200 backdrop-blur-sm ${
         statusConfig.border
       } ${statusConfig.bg} ${
         isSelected
@@ -76,30 +81,30 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
       />
 
       {/* Header with ID and Status Badge */}
-      <div className="flex items-center justify-between gap-2 mb-2">
+      <div className="flex items-center justify-between gap-1.5 mb-1.5">
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
             {node.id}
           </span>
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate max-w-[100px]">
             {node.category || 'Giả định'}
           </span>
         </div>
-        <div className={`flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${statusConfig.badge}`}>
+        <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusConfig.badge}`}>
           {statusConfig.icon}
           <span>{statusConfig.label}</span>
         </div>
       </div>
 
       {/* Main Assumption Claim */}
-      <p className="text-xs font-medium text-slate-900 dark:text-slate-100 leading-snug line-clamp-3 mb-2.5">
+      <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 mb-2">
         {node.text}
       </p>
 
-      {/* Verbatim Source Quote */}
-      {node.source?.quote && (
-        <div className="flex items-start gap-1.5 p-2 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 italic mb-2">
-          <Quote className="w-3 h-3 text-slate-400 flex-shrink-0 mt-0.5" />
+      {/* Verbatim Source Quote (Hidden in compact mode for space efficiency) */}
+      {!isCompact && node.source?.quote && (
+        <div className="flex items-start gap-1.5 p-1.5 rounded-lg bg-white/70 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-[10px] text-slate-600 dark:text-slate-400 italic mb-2">
+          <Quote className="w-2.5 h-2.5 text-slate-400 flex-shrink-0 mt-0.5" />
           <span className="line-clamp-2">&ldquo;{node.source.quote}&rdquo;</span>
         </div>
       )}
@@ -108,7 +113,7 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
       <div className="flex items-center justify-between pt-1 border-t border-slate-200/50 dark:border-slate-800/60 text-[10px] text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-1">
           <ShieldAlert className="w-3 h-3 text-slate-400" />
-          <span>Tầm quan trọng: <strong>{node.importance}/5</strong></span>
+          <span>Quan trọng: <strong>{node.importance}/5</strong></span>
         </div>
         <div>
           Độ tin cậy: <strong>{Math.round((node.confidence ?? 0.5) * 100)}%</strong>
@@ -116,7 +121,7 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
       </div>
 
       {node.refuteReason && (
-        <div className="mt-2 text-[10px] text-rose-700 dark:text-rose-300 bg-rose-100/70 dark:bg-rose-950/60 p-1.5 rounded border border-rose-300 dark:border-rose-800">
+        <div className="mt-1.5 text-[10px] text-rose-700 dark:text-rose-300 bg-rose-100/70 dark:bg-rose-950/60 p-1.5 rounded border border-rose-300 dark:border-rose-800">
           <strong>Lý do bác bỏ:</strong> {node.refuteReason}
         </div>
       )}
