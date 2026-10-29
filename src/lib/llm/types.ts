@@ -15,8 +15,8 @@ export const PROVIDER_CONFIGS: Record<LLMProvider, ProviderConfig> = {
   gemini: {
     id: 'gemini',
     name: 'Google Gemini',
-    defaultModel: 'gemini-2.5-flash',
-    availableModels: ['gemini-2.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'],
+    defaultModel: 'gemini-1.5-flash',
+    availableModels: ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro', 'gemini-2.5-flash'],
     envKeyName: 'GEMINI_API_KEY',
     envModelName: 'GEMINI_MODEL'
   },

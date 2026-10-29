@@ -69,3 +69,4 @@ export const DocumentNodeComponent = memo(({ id, data, selected }: NodeProps) =>
 });
 
 DocumentNodeComponent.displayName = 'DocumentNodeComponent';
+

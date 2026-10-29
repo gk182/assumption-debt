@@ -23,17 +23,16 @@ export class GeminiAdapter implements LLMAdapter {
       throw new Error('Chưa cấu hình GEMINI_API_KEY. Vui lòng cung cấp Gemini API Key trong .env.local hoặc trên giao diện.');
     }
 
-    const modelName = options.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const requestedModel = options.model || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    // List of fallback candidates in case the requested model is overloaded (e.g. 503 high demand)
+    const candidateModels = [
+      requestedModel,
+      'gemini-1.5-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-pro'
+    ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      generationConfig: {
-        responseMimeType: 'application/json',
-        temperature: 0.1
-      },
-      systemInstruction: SYSTEM_PROMPT
-    });
+    const genAI = new GoogleGenerativeAI(apiKey);
 
     const prompt = `Bạn là chuyên gia thẩm định tài liệu kỹ thuật. Hãy phân tích văn bản sau đây và trích xuất danh sách các giả định ngầm, các quyết định/nhiệm vụ liên đới, và liên kết phụ thuộc (depends_on).
 
@@ -45,17 +44,54 @@ Văn bản tài liệu:
 ${options.documentText}
 ---`;
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    const cleanedJson = cleanJsonString(responseText);
+    let lastError: unknown = null;
 
-    try {
-      const parsed = JSON.parse(cleanedJson);
-      return ExtractionOutputSchema.parse(parsed);
-    } catch (err: unknown) {
-      console.warn('Gemini extraction output parse error:', err, 'Raw:', responseText);
-      throw new Error(`Đầu ra từ Gemini không đúng chuẩn schema: ${err instanceof Error ? err.message : String(err)}`);
+    for (const modelName of candidateModels) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1
+          },
+          systemInstruction: SYSTEM_PROMPT
+        });
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+        const cleanedJson = cleanJsonString(responseText);
+
+        try {
+          const parsed = JSON.parse(cleanedJson);
+          return ExtractionOutputSchema.parse(parsed);
+        } catch (parseErr: unknown) {
+          console.warn(`[GeminiAdapter] Parse error on ${modelName}:`, parseErr, 'Raw:', responseText);
+          throw new Error(`Đầu ra từ Gemini (${modelName}) không đúng chuẩn schema: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`);
+        }
+      } catch (err: unknown) {
+        lastError = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        const isTransient =
+          msg.includes('503') ||
+          msg.includes('429') ||
+          msg.includes('high demand') ||
+          msg.includes('overloaded') ||
+          msg.includes('ResourceExhausted') ||
+          msg.includes('Service Unavailable');
+
+        if (isTransient) {
+          console.warn(`[GeminiAdapter] Mô hình ${modelName} đang quá tải (503/429). Tự động thử lại với mô hình dự phòng...`);
+          continue; // Try next fallback candidate
+        }
+
+        // If not transient, throw immediately
+        throw err;
+      }
     }
+
+    throw new Error(
+      `Tất cả mô hình Gemini đều đang bận hoặc quá tải: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+    );
   }
 }
 
