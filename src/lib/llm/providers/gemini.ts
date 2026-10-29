@@ -23,12 +23,13 @@ export class GeminiAdapter implements LLMAdapter {
       throw new Error('Chưa cấu hình GEMINI_API_KEY. Vui lòng cung cấp Gemini API Key trong .env.local hoặc trên giao diện.');
     }
 
-    const requestedModel = options.model || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const requestedModel = options.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     // List of fallback candidates in case the requested model is overloaded (e.g. 503 high demand)
     const candidateModels = [
       requestedModel,
-      'gemini-1.5-flash',
+      'gemini-2.5-flash',
       'gemini-2.0-flash',
+      'gemini-1.5-flash',
       'gemini-1.5-pro'
     ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
