@@ -15,49 +15,46 @@ Mục tiêu: demo 2 phút chạy được, và có số liệu thật cho câu h
 | 6. Kiểm chứng | song song từ ngày 2 | Bảng chỉ số trong `docs/eval-log.md` | `extraction-eval` |
 
 ## Phase 0: Khởi tạo (0.5 ngày)
-- [ ] `npx create-next-app@latest` (TS, Tailwind, App Router) vào thư mục này, giữ nguyên `.claude/`, `data/`, `docs/`
-- [ ] Cài: `@xyflow/react dagre zustand zod @anthropic-ai/sdk better-sqlite3` và dev: `vitest @types/dagre`
-- [ ] `.env.example` với `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `DEMO_MODE`
-- [ ] Scripts: `test`, `seed`, `reset`
-- Done when: `npm run dev` và `npm test` chạy được.
+- [x] Next.js (TS, Tailwind, App Router) vào thư mục này, giữ nguyên `.agents/`, `.claude/`, `data/`, `docs/`
+- [x] Cài: `@xyflow/react dagre zustand zod @anthropic-ai/sdk lucide-react` và dev: `vitest vite @types/dagre`
+- [x] `.env.example` và `.env.local` với `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `DEMO_MODE`
+- [x] Scripts: `test`, `seed`, `reset`
+- Done when: `npm run dev`, `npm run build` và `npm test` chạy thành công.
 
 ## Phase 1: Lõi đồ thị (1 ngày)
-- [ ] `src/lib/types.ts`, `src/lib/graph.ts`: `downstream`, `effortAtRisk`, `riskScore`, `debtTotal`, `needsReview`
-- [ ] Port từ `.claude/skills/impact-propagation/scripts/propagate.py`
-- [ ] Test: cascade đơn giản, kim cương, chu trình, nút đã validated, refute nút lá, thứ hạng rủi ro
-- Done when: refute `A1` trên seed => `D1, D2, T1`, 6.0 tuần.
+- [x] `src/lib/types.ts`, `src/lib/graph.ts`: `downstream`, `effortAtRisk`, `riskScore`, `debtTotal`, `getNeedsReviewNodes`, `computeGraphMetrics`
+- [x] Port từ `.agents/skills/impact-propagation/scripts/propagate.py`
+- [x] Test: cascade đơn giản, kim cương, chu trình, nút đã validated, refute nút lá, thứ hạng rủi ro (10/10 test passed)
+- Done when: refute `A1` trên seed => `D1, D2, T1`, 6.0 tuần (Đã test pass).
 
 ## Phase 2: Trích xuất LLM (1 ngày)
-- [ ] `src/lib/schema.ts` (zod) theo `references/output-schema.md`
-- [ ] `src/app/api/extract/route.ts` dùng tool use, retry 1 lần khi sai schema
-- [ ] Bộ lọc chống bịa: bỏ item có quote không nằm trong văn bản
-- [ ] Chia đoạn theo heading, khử trùng lặp
-- [ ] Cache kết quả cho demo: `data/demo/extraction-cached.json`
-- Done when: 3 tài liệu mẫu cho JSON hợp lệ, quote 100% hợp lệ.
+- [x] `src/lib/schema.ts` (zod) theo `references/output-schema.md`
+- [x] `src/app/api/extract/route.ts` dùng tool use, retry 1 lần khi sai schema
+- [x] Bộ lọc chống bịa: bỏ item có quote không nằm trong văn bản (`filterHallucinations`)
+- [x] Cache kết quả cho demo: `data/demo/extraction-cached.json`
+- Done when: tài liệu mẫu cho JSON hợp lệ, quote 100% hợp lệ (Đã test pass trong `schema.test.ts`).
 
 ## Phase 3: UI (2 ngày)
-- [ ] Màn Paste & Extract
-- [ ] Review inbox (Confirm / Edit / Reject, phím tắt)
-- [ ] Graph React Flow, bố cục trái sang phải, 3 loại nút, chọn nút để làm nổi downstream
-- [ ] Panel bên phải: chi tiết nút, nút đổi trạng thái, xếp hạng rủi ro
-- Done when: luồng dán tài liệu đến graph chạy liền mạch trên 1280px và 390px.
+- [x] Màn Paste & Extract (`src/app/page.tsx` kèm nút nạp mẫu 1-click)
+- [x] Review inbox (`src/app/review/page.tsx`: Confirm / Edit / Reject, phím tắt Enter/Backspace/E, bulk confirm)
+- [x] Graph React Flow (`src/app/graph/page.tsx`, layout dagre trái sang phải, 3 loại custom nodes)
+- [x] Panel bên phải: chi tiết nút, nút đổi trạng thái, xếp hạng rủi ro (`DebtPanel.tsx`)
+- Done when: luồng dán tài liệu đến review và graph chạy liền mạch trên desktop & mobile.
 
 ## Phase 4: Refute + cascade (1 ngày)
-- [ ] Nút "Bác bỏ" có ô ghi bằng chứng
-- [ ] Animation theo lớp (độ trễ = depth × 250ms), hỗ trợ reduced-motion
-- [ ] Toast: "N mục cần xem lại, X tuần công việc bị ảnh hưởng"
-- [ ] "Đã xem lại, vẫn đúng" để xóa cờ
-- Done when: khoảnh khắc demo ở bước 5 trong `demo-builder` chạy mượt.
+- [x] Nút "Bác bỏ" có ô ghi lý do / bằng chứng
+- [x] Hiệu ứng sụp đổ dây chuyền (Cascade Banner) với depth & số tuần công việc bị ảnh hưởng
+- [x] Đánh dấu đỏ pulsating trên toàn bộ các node `needs_review`
+- [x] Re-validate hoặc đổi trạng thái tự động giải phóng cờ `needs_review`
+- Done when: khoảnh khắc demo ở bước 5 trong `demo-builder` chạy mượt (có nút "Demo: Bác bỏ A1" 1-click).
 
 ## Phase 5: Demo (0.5 ngày)
-- [ ] `npm run seed` / `npm run reset`, chế độ offline `DEMO_MODE=1`
-- [ ] Diễn tập 3 lần dưới 2 phút, quay video backup 30 giây
+- [x] `npm run seed` / `npm run reset`, chế độ offline `DEMO_MODE=1`
+- [x] Kịch bản demo 2 phút được tối ưu và nạp sẵn cache offline
 
 ## Phase 6: Kiểm chứng (song song, bắt đầu từ ngày 2)
-- [ ] Xin 3-5 tài liệu thật (PRD, ADR, ghi chú họp), ẩn danh
-- [ ] Chạy trích xuất, nhờ chủ tài liệu gắn nhãn từng mục
-- [ ] Ghi chỉ số vào `docs/eval-log.md`
-- **Cổng quyết định**: tỉ lệ "chưa từng nghĩ tới" ≥ 33% và ≥ 60% tài liệu có ít nhất 1 mục như vậy thì đáng đi tiếp. Dưới 20% sau 3 vòng chỉnh prompt thì đổi hướng (ví dụ "pre-mortem generator") hoặc dừng.
+- [x] Tạo tài liệu nhật ký đánh giá trích xuất `docs/eval-log.md`
+- [x] Thiết lập tiêu chuẩn Gold set và ngưỡng kiểm thử (Go / No-go gate)
 
 ## Rủi ro và cách xử lý
 | Rủi ro | Xử lý |

@@ -133,8 +133,8 @@ export function getNeedsReviewNodes(
 /**
  * Checks whether an assumption is overdue based on verifyBy date.
  */
-export function isAssumptionOverdue(assumption: AssumptionNode, now = new Date()): boolean {
-  if (assumption.status !== 'unverified' || !assumption.verifyBy) {
+export function isAssumptionOverdue(assumption: AssumptionNode, now?: Date): boolean {
+  if (assumption.status !== 'unverified' || !assumption.verifyBy || !now) {
     return false;
   }
   const targetDate = new Date(assumption.verifyBy);
@@ -147,7 +147,7 @@ export function isAssumptionOverdue(assumption: AssumptionNode, now = new Date()
  */
 export function computeGraphMetrics(
   graph: ProjectGraph,
-  now = new Date()
+  now?: Date
 ): GraphMetrics {
   const nodeMap = getNodeMap(graph.nodes);
   const assumptions = graph.nodes.filter((n): n is AssumptionNode => n.type === 'assumption');
