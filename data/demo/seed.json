@@ -1,29 +1,159 @@
 {
-  "project": "Ung dung giao do an (demo)",
+  "project": "Instant Merchant Advance (Chi ho & Ung von nguoi ban)",
   "nodes": [
-    {"id":"A1","type":"assumption","text":"Khach chap nhan phi ship 15k ma khong bo gio hang","status":"unverified","importance":5,"confidence":0.4,"effortWeeks":0,"owner":"PM","verifyBy":"2026-11-15","source":{"doc":"prd-food-delivery.md","quote":"Phi ship co dinh 15k la hop ly voi hau het khach hang"}},
-    {"id":"A2","type":"assumption","text":"API ban do ben thu ba on dinh ve gia va gioi han goi den luc ra mat","status":"unverified","importance":4,"confidence":0.6,"effortWeeks":0,"owner":"Tech lead","verifyBy":"2026-11-30","source":{"doc":"prd-food-delivery.md","quote":"Chung ta dung Google Maps nen khong lo ve khoang cach va ETA"}},
-    {"id":"A3","type":"assumption","text":"Quan an se tu cap nhat menu moi ngay","status":"unverified","importance":4,"confidence":0.3,"effortWeeks":0,"owner":"Ops","verifyBy":"2026-11-10","source":{"doc":"prd-food-delivery.md","quote":"Quan se tu cap nhat menu hang ngay qua form don gian"}},
-    {"id":"A4","type":"assumption","text":"Khach dat mon it nhat 2 lan moi tuan","status":"unverified","importance":4,"confidence":0.5,"effortWeeks":0,"owner":"PM","verifyBy":"2026-12-01","source":{"doc":"prd-food-delivery.md","quote":"Khach hang trung thanh se dat 2 lan moi tuan"}},
-    {"id":"D1","type":"decision","text":"Bo chuong trinh freeship","status":"active","effortWeeks":1,"source":{"doc":"prd-food-delivery.md","quote":"Bo freeship de bao ve bien loi nhuan"}},
-    {"id":"D2","type":"decision","text":"Phi ship co dinh, khong dong theo khoang cach/gio cao diem","status":"active","effortWeeks":1.5,"source":{"doc":"prd-food-delivery.md","quote":"Phi ship co dinh 15k"}},
-    {"id":"D3","type":"decision","text":"Dung Google Maps cho khoang cach va ETA","status":"active","effortWeeks":2,"source":{"doc":"prd-food-delivery.md","quote":"Chung ta dung Google Maps"}},
-    {"id":"D4","type":"decision","text":"Khong xay cong cu quan ly menu tu dong, quan cap nhat thu cong","status":"active","effortWeeks":1,"source":{"doc":"prd-food-delivery.md","quote":"khong can import menu tu POS"}},
-    {"id":"D5","type":"decision","text":"Ban goi dang ky thang cho khach thuong xuyen","status":"active","effortWeeks":3,"source":{"doc":"prd-food-delivery.md","quote":"Goi thang 99k cho khach hang trung thanh"}},
-    {"id":"T1","type":"task","text":"Sprint 3: toi uu doanh thu tu phi ship","status":"active","effortWeeks":3.5},
-    {"id":"T2","type":"task","text":"Tich hop ETA realtime","status":"active","effortWeeks":2},
-    {"id":"T3","type":"task","text":"Man hinh nhac quan cap nhat menu","status":"active","effortWeeks":1},
-    {"id":"T4","type":"task","text":"Billing cho goi dang ky","status":"active","effortWeeks":2}
+    {
+      "id": "A1",
+      "type": "assumption",
+      "text": "Nhà bán lẻ chấp nhận mức phí 1.2% trên số tiền rút sớm mà không chuyển sang kênh khác",
+      "status": "unverified",
+      "importance": 5,
+      "confidence": 0.4,
+      "effortWeeks": 0,
+      "owner": "Head of Product",
+      "verifyBy": "2026-11-15",
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Muc phi nay la hoan toan hop ly voi nha ban le vi ho san sang tra phi thap hon lai suat vay nong"
+      }
+    },
+    {
+      "id": "A2",
+      "type": "assumption",
+      "text": "Tỷ lệ gian lận đơn ảo không đáng kể khi chỉ giải ngân qua đơn vị vận chuyển uy tín",
+      "status": "unverified",
+      "importance": 5,
+      "confidence": 0.3,
+      "effortWeeks": 0,
+      "owner": "Risk Lead",
+      "verifyBy": "2026-11-10",
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Ty le gian lan don ao se khong dang ke vi chung ta chi giai ngan cho cac don hang duoc van chuyen boi cac don vi van chuyen uy tin"
+      }
+    },
+    {
+      "id": "A3",
+      "type": "assumption",
+      "text": "Hạ tầng API đối tác Napas247 duy trì độ khả dụng 99.9% và không nghẽn lệnh ban đêm",
+      "status": "unverified",
+      "importance": 4,
+      "confidence": 0.5,
+      "effortWeeks": 0,
+      "owner": "Tech Lead",
+      "verifyBy": "2026-11-20",
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Ha tang API ngan hang doi tac chac chan se duy tri do kha dung 99.9% va khong gap nghen lenh vao ban dem"
+      }
+    },
+    {
+      "id": "A4",
+      "type": "assumption",
+      "text": "Người bán tiếp tục duy trì gian hàng và phát sinh đơn hàng đều đặn để khấu trừ nợ",
+      "status": "unverified",
+      "importance": 4,
+      "confidence": 0.4,
+      "effortWeeks": 0,
+      "owner": "Merchant Ops",
+      "verifyBy": "2026-11-25",
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Nguoi ban se tiep tuc duy tri gian hang va phat sinh don hang deu dan de hoan tra khoan ung"
+      }
+    },
+    {
+      "id": "D1",
+      "type": "decision",
+      "text": "Áp dụng phí dịch vụ cố định 1.2% trên số tiền rút sớm",
+      "status": "active",
+      "effortWeeks": 1.0,
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Ap dung muc phi dich vu co dinh 1.2% tren so tien rut som"
+      }
+    },
+    {
+      "id": "D2",
+      "type": "decision",
+      "text": "Miễn phí 3 giao dịch đầu tiên cho nhà bán mới để tạo thói quen",
+      "status": "active",
+      "effortWeeks": 1.5,
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Mien phi 3 giao dich dau tien cho nha ban moi"
+      }
+    },
+    {
+      "id": "D3",
+      "type": "decision",
+      "text": "Tự động duyệt hạn mức dựa trên lịch sử 45 ngày không cần sao kê",
+      "status": "active",
+      "effortWeeks": 2.0,
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Tu dong phe duyet han muc ung tien dua tren lich su giao dich 45 ngay gan nhat"
+      }
+    },
+    {
+      "id": "D4",
+      "type": "decision",
+      "text": "Kết nối trực tiếp vào Cổng Napas247 để tự động chuyển tiền 24/7",
+      "status": "active",
+      "effortWeeks": 1.5,
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Ket noi truc tiep vao Cong Napas247"
+      }
+    },
+    {
+      "id": "D5",
+      "type": "decision",
+      "text": "Không mua bảo hiểm tín dụng Credit Insurance trong giai đoạn v1",
+      "status": "active",
+      "effortWeeks": 1.0,
+      "source": {
+        "doc": "prd-fintech-instant-payout.md",
+        "quote": "Khong trien khai mua bao hiem tin dung Credit Insurance trong giai doan v1"
+      }
+    },
+    {
+      "id": "T1",
+      "type": "task",
+      "text": "Sprint 1: Tích hợp API Cổng Napas247 & Xây dựng hệ thống giải ngân tự động 24/7",
+      "status": "active",
+      "effortWeeks": 3.5
+    },
+    {
+      "id": "T2",
+      "type": "task",
+      "text": "Sprint 2: Xây dựng Risk Scoring Engine tự động tính hạn mức",
+      "status": "active",
+      "effortWeeks": 3.0
+    },
+    {
+      "id": "T3",
+      "type": "task",
+      "text": "Sprint 3: UI/UX Ví đối tác & Luồng rút tiền 1 chạm trên Merchant Portal",
+      "status": "active",
+      "effortWeeks": 2.0
+    },
+    {
+      "id": "T4",
+      "type": "task",
+      "text": "Sprint 4: Module tự động thu hồi nợ gối đầu từ đơn hàng phát sinh tiếp theo",
+      "status": "active",
+      "effortWeeks": 2.5
+    }
   ],
   "edges": [
-    {"from":"D1","to":"A1","relation":"depends_on"},
-    {"from":"D2","to":"A1","relation":"depends_on"},
-    {"from":"T1","to":"D2","relation":"depends_on"},
-    {"from":"D3","to":"A2","relation":"depends_on"},
-    {"from":"T2","to":"D3","relation":"depends_on"},
-    {"from":"D4","to":"A3","relation":"depends_on"},
-    {"from":"T3","to":"D4","relation":"depends_on"},
-    {"from":"D5","to":"A4","relation":"depends_on"},
-    {"from":"T4","to":"D5","relation":"depends_on"}
+    { "from": "D1", "to": "A1", "relation": "depends_on" },
+    { "from": "D2", "to": "A1", "relation": "depends_on" },
+    { "from": "T1", "to": "D2", "relation": "depends_on" },
+    { "from": "D3", "to": "A2", "relation": "depends_on" },
+    { "from": "T2", "to": "D3", "relation": "depends_on" },
+    { "from": "D4", "to": "A3", "relation": "depends_on" },
+    { "from": "T3", "to": "D4", "relation": "depends_on" },
+    { "from": "D5", "to": "A4", "relation": "depends_on" },
+    { "from": "T4", "to": "D5", "relation": "depends_on" }
   ]
 }

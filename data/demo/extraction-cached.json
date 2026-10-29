@@ -2,163 +2,207 @@
   "assumptions": [
     {
       "tempId": "a1",
-      "text": "Khách hàng chấp nhận phí ship cố định 15k mà không bỏ giỏ hàng",
+      "text": "Nhà bán lẻ chấp nhận mức phí dịch vụ 1.2% trên số tiền rút sớm mà không rời bỏ nền tảng",
       "category": "user_behavior",
       "source": {
-        "quote": "Phi ship co dinh 15k la hop ly voi hau het khach hang",
-        "location": "Phi giao hang"
+        "quote": "Muc phi nay la hoan toan hop ly voi nha ban le vi ho san sang tra phi thap hon lai suat vay nong",
+        "location": "Mo hinh doanh thu va Phi dich vu"
       },
       "evidenceInDoc": "none",
       "suggestedImportance": 5,
-      "whyItMatters": "Nếu khách từ chối phí ship, tỉ lệ chuyển đổi sẽ giảm mạnh và mô hình doanh thu sụp đổ",
-      "howToVerify": "Chạy thử nghiệm A/B test hoặc khảo sát 50 khách hàng về mức sẵn sàng trả 15k phí ship",
+      "whyItMatters": "Nếu người bán chê phí đắt, tỷ lệ kích hoạt sẽ thấp và mô hình thu phí hòa vốn bị sụp đổ",
+      "howToVerify": "Phỏng vấn 30 nhà bán hàng active và đo lường tỷ lệ chấp nhận ở mức phí 0.8% - 1.2% - 1.5%",
       "verifyWithinDays": 7
     },
     {
       "tempId": "a2",
-      "text": "API Google Maps ổn định về chi phí và không bị chạm hạn mức gọi (quota)",
-      "category": "technical_dependency",
+      "text": "Tỷ lệ gian lận đơn ảo không đáng kể khi giải ngân cho các đơn vị vận chuyển uy tín",
+      "category": "market",
       "source": {
-        "quote": "Chung ta dung Google Maps nen khong lo ve khoang cach va ETA",
-        "location": "Ban do va ETA"
+        "quote": "Ty le gian lan don ao se khong dang ke vi chung ta chi giai ngan cho cac don hang duoc van chuyen boi cac don vi van chuyen uy tin",
+        "location": "Tham dinh va Quan tri rui ro"
       },
       "evidenceInDoc": "weak",
-      "suggestedImportance": 4,
-      "whyItMatters": "Chi phí gọi API Maps realtime có thể tăng vọt ngoài dự toán ngân sách",
-      "howToVerify": "Mô phỏng lưu lượng 5.000 đơn/ngày và tính toán chi phí gọi Google Distance Matrix API",
+      "suggestedImportance": 5,
+      "whyItMatters": "Nếu xảy ra cấu kết tạo đơn ảo rút tiền rồi bùng nợ, toàn bộ quỹ vốn giải ngân sẽ bị thất thoát",
+      "howToVerify": "Chạy mô hình đối soát chéo dữ liệu đơn giao của GHN/GHTK với lịch sử địa chỉ IP người mua",
       "verifyWithinDays": 10
     },
     {
       "tempId": "a3",
-      "text": "Các quán ăn có kỷ luật tự cập nhật menu và tình trạng hết món mỗi ngày qua form",
-      "category": "user_behavior",
+      "text": "Hạ tầng API Napas247 duy trì độ khả dụng 99.9% và không gặp nghẽn lệnh vào ban đêm",
+      "category": "technical_dependency",
       "source": {
-        "quote": "Quan se tu cap nhat menu hang ngay qua form don gian",
-        "location": "Menu"
+        "quote": "Ha tang API ngan hang doi tac chac chan se duy tri do kha dung 99.9% va khong gap nghen lenh vao ban dem",
+        "location": "Ha tang Ky thuat va Thanh toan"
       },
       "evidenceInDoc": "none",
       "suggestedImportance": 4,
-      "whyItMatters": "Nếu quán quên cập nhật, khách đặt món đã hết dẫn đến huỷ đơn và trải nghiệm xấu",
-      "howToVerify": "Phỏng vấn 10 chủ quán đối tác về quy trình vận hành đầu ngày",
-      "verifyWithinDays": 5
+      "whyItMatters": "Nếu nghẽn lệnh ban đêm, cam kết tiền về ví dưới 60 giây bị phá vỡ, gây hoang mang cho đối tác",
+      "howToVerify": "Bắn tải giả lập 2.000 giao dịch chuyển khoản vào khung giờ 22h - 24h cuối tuần",
+      "verifyWithinDays": 14
     },
     {
       "tempId": "a4",
-      "text": "Khách hàng trung thành sẽ duy trì tần suất đặt món ít nhất 2 lần mỗi tuần",
-      "category": "market",
+      "text": "Người bán sẽ tiếp tục duy trì gian hàng và phát sinh đơn hàng đều đặn để hoàn trả khoản ứng",
+      "category": "user_behavior",
       "source": {
-        "quote": "Khach hang trung thanh se dat 2 lan moi tuan",
-        "location": "Khach hang trung thanh"
+        "quote": "Nguoi ban se tiep tuc duy tri gian hang va phat sinh don hang deu dan de hoan tra khoan ung",
+        "location": "Thu hoi no va Bao hiem"
       },
       "evidenceInDoc": "none",
       "suggestedImportance": 4,
-      "whyItMatters": "Gói thuê bao 99k/tháng sẽ không có người mua nếu tần suất đặt thực tế thấp hơn",
-      "howToVerify": "Phân tích dữ liệu lịch sử đặt hàng của nhóm khách dùng thử",
-      "verifyWithinDays": 14
+      "whyItMatters": "Nếu người bán đóng gian hàng sau khi rút 85% giá trị, cơ chế thu nợ gối đầu sẽ hoàn toàn vô hiệu",
+      "howToVerify": "Rà soát tỷ lệ gian hàng ngưng hoạt động đột ngột trong 3 tháng qua",
+      "verifyWithinDays": 7
     }
   ],
   "decisions": [
     {
       "tempId": "d1",
-      "text": "Bỏ chính sách freeship để bảo vệ biên lợi nhuận",
+      "text": "Áp dụng mức phí dịch vụ cố định 1.2% trên số tiền rút sớm",
       "kind": "decision",
       "source": {
-        "quote": "Bo freeship de bao ve bien loi nhuan",
-        "location": "Phi giao hang"
+        "quote": "Ap dung muc phi dich vu co dinh 1.2% tren so tien rut som",
+        "location": "Mo hinh doanh thu va Phi dich vu"
       },
-      "estimatedEffortWeeks": 1
+      "estimatedEffortWeeks": 1.0
     },
     {
       "tempId": "d2",
-      "text": "Áp dụng phí ship cố định 15k toàn hệ thống",
+      "text": "Miễn phí 3 giao dịch đầu tiên cho nhà bán mới để tạo thói quen sử dụng",
       "kind": "decision",
       "source": {
-        "quote": "Phi ship co dinh 15k",
-        "location": "Phi giao hang"
+        "quote": "Mien phi 3 giao dich dau tien cho nha ban moi",
+        "location": "Mo hinh doanh thu va Phi dich vu"
       },
       "estimatedEffortWeeks": 1.5
     },
     {
       "tempId": "d3",
-      "text": "Dùng Google Maps API cho bài toán tính khoảng cách và ETA",
+      "text": "Tự động phê duyệt hạn mức ứng tiền dựa trên lịch sử 45 ngày không cần sao kê",
       "kind": "decision",
       "source": {
-        "quote": "Chung ta dung Google Maps",
-        "location": "Ban do va ETA"
+        "quote": "Tu dong phe duyet han muc ung tien dua tren lich su giao dich 45 ngay gan nhat",
+        "location": "Tham dinh va Quan tri rui ro"
       },
-      "estimatedEffortWeeks": 2
+      "estimatedEffortWeeks": 2.0
     },
     {
       "tempId": "d4",
-      "text": "Không làm tính năng đồng bộ POS tự động, quán nhập thủ công",
+      "text": "Kết nối trực tiếp vào Cổng thanh toán Napas247 để chuyển tiền 24/7",
       "kind": "decision",
       "source": {
-        "quote": "khong can import menu tu POS",
-        "location": "Menu"
+        "quote": "Ket noi truc tiep vao Cong Napas247",
+        "location": "Ha tang Ky thuat va Thanh toan"
       },
-      "estimatedEffortWeeks": 1
+      "estimatedEffortWeeks": 1.5
     },
     {
       "tempId": "d5",
-      "text": "Phát hành gói thành viên 99k/tháng cho khách hàng trung thành",
+      "text": "Không mua bảo hiểm tín dụng Credit Insurance trong giai đoạn v1",
       "kind": "decision",
       "source": {
-        "quote": "Goi thang 99k cho khach hang trung thanh",
-        "location": "Khach hang trung thanh"
+        "quote": "Khong trien khai mua bao hiem tin dung Credit Insurance trong giai doan v1",
+        "location": "Thu hoi no va Bao hiem"
       },
-      "estimatedEffortWeeks": 3
+      "estimatedEffortWeeks": 1.0
     },
     {
       "tempId": "t1",
-      "text": "Sprint 3: Tối ưu doanh thu từ phí ship",
+      "text": "Sprint 1: Tích hợp API Cổng Napas247 & Xây dựng hệ thống giải ngân tự động 24/7",
       "kind": "task",
       "source": {
-        "quote": "Sprint 3 se toi uu doanh thu tu phi ship",
-        "location": "Phi giao hang"
+        "quote": "Sprint 1: Tich hop API Cong Napas247 va Xay dung he thong giai ngan tu dong 24/7",
+        "location": "Mo hinh doanh thu va Phi dich vu"
       },
       "estimatedEffortWeeks": 3.5
     },
     {
       "tempId": "t2",
-      "text": "Sprint 4: Tích hợp ETA realtime với Google Maps",
+      "text": "Sprint 2: Xây dựng Risk Scoring Engine tự động tính hạn mức",
       "kind": "task",
       "source": {
-        "quote": "Tich hop ETA realtime trong sprint 4",
-        "location": "Ban do va ETA"
+        "quote": "Sprint 2: Xay dung Risk Scoring Engine tu dong tinh han muc",
+        "location": "Tham dinh va Quan tri rui ro"
       },
-      "estimatedEffortWeeks": 2
+      "estimatedEffortWeeks": 3.0
     },
     {
       "tempId": "t3",
-      "text": "Sprint 5: Màn hình nhắc quán cập nhật menu",
+      "text": "Sprint 3: Thiết kế UI/UX Ví đối tác & Luồng rút tiền 1 chạm trên Merchant Portal",
       "kind": "task",
       "source": {
-        "quote": "Man hinh nhac quan cap nhat menu se lam o sprint 5",
-        "location": "Menu"
+        "quote": "Sprint 3: Thiet ke UI UX Vi doi tac va Luong rut tien 1 cham tren Merchant Portal",
+        "location": "Ha tang Ky thuat va Thanh toan"
       },
-      "estimatedEffortWeeks": 1
+      "estimatedEffortWeeks": 2.0
     },
     {
       "tempId": "t4",
-      "text": "Sprint 6: Hệ thống billing cho gói thuê bao tháng",
+      "text": "Sprint 4: Module tự động thu hồi nợ gối đầu từ đơn hàng phát sinh tiếp theo",
       "kind": "task",
       "source": {
-        "quote": "billing lam o sprint 6",
-        "location": "Khach hang trung thanh"
+        "quote": "Sprint 4: Module tu dong thu hoi no goi dau tu don hang phat sinh tiep theo",
+        "location": "Thu hoi no va Bao hiem"
       },
-      "estimatedEffortWeeks": 2
+      "estimatedEffortWeeks": 2.5
     }
   ],
   "links": [
-    { "from": "d1", "to": "a1", "relation": "depends_on", "reason": "Bỏ freeship chỉ khả thi nếu khách chấp nhận trả 15k ship" },
-    { "from": "d2", "to": "a1", "relation": "depends_on", "reason": "Phí ship cố định 15k dựa trên giả định khách đồng thuận mức giá này" },
-    { "from": "t1", "to": "d2", "relation": "depends_on", "reason": "Công việc sprint 3 xây dựng trên quyết định áp dụng phí ship 15k" },
-    { "from": "d3", "to": "a2", "relation": "depends_on", "reason": "Chọn Google Maps vì giả định API ổn định và chi phí chấp nhận được" },
-    { "from": "t2", "to": "d3", "relation": "depends_on", "reason": "Tích hợp ETA là hiện thực hóa của quyết định dùng Google Maps" },
-    { "from": "d4", "to": "a3", "relation": "depends_on", "reason": "Không làm POS vì tin rằng quán sẽ tự điền form hàng ngày" },
-    { "from": "t3", "to": "d4", "relation": "depends_on", "reason": "Màn hình nhắc nhở phục vụ quy trình quán cập nhật thủ công" },
-    { "from": "d5", "to": "a4", "relation": "depends_on", "reason": "Gói 99k chỉ hấp dẫn nếu khách thực sự đặt từ 2 lần/tuần trở lên" },
-    { "from": "t4", "to": "d5", "relation": "depends_on", "reason": "Làm module billing để thu tiền gói 99k" }
+    {
+      "from": "d1",
+      "to": "a1",
+      "relation": "depends_on",
+      "reason": "Quyết định thu phí 1.2% dựa trên giả định người bán chấp nhận mức phí này"
+    },
+    {
+      "from": "d2",
+      "to": "a1",
+      "relation": "depends_on",
+      "reason": "Miễn phí 3 giao dịch đầu nhằm thu hút người bán làm quen với mức phí 1.2%"
+    },
+    {
+      "from": "t1",
+      "to": "d2",
+      "relation": "depends_on",
+      "reason": "Sprint 1 xây dựng hệ thống chi hộ để áp dụng chính sách phí"
+    },
+    {
+      "from": "d3",
+      "to": "a2",
+      "relation": "depends_on",
+      "reason": "Duyệt tự động không cần sao kê chỉ an toàn nếu tỷ lệ gian lận đơn ảo rất thấp"
+    },
+    {
+      "from": "t2",
+      "to": "d3",
+      "relation": "depends_on",
+      "reason": "Xây dựng Risk Engine để hiện thực hóa quy trình phê duyệt hạn mức tự động"
+    },
+    {
+      "from": "d4",
+      "to": "a3",
+      "relation": "depends_on",
+      "reason": "Kết nối Napas247 dựa trên giả định API ngân hàng hoạt động ổn định 99.9%"
+    },
+    {
+      "from": "t3",
+      "to": "d4",
+      "relation": "depends_on",
+      "reason": "UI rút tiền 1 chạm kết nối trực tiếp vào hạ tầng Napas"
+    },
+    {
+      "from": "d5",
+      "to": "a4",
+      "relation": "depends_on",
+      "reason": "Không mua bảo hiểm tín dụng dựa trên niềm tin người bán sẽ tiếp tục bán để trả nợ"
+    },
+    {
+      "from": "t4",
+      "to": "d5",
+      "relation": "depends_on",
+      "reason": "Module thu nợ tự động vận hành dựa trên cơ chế nợ gối đầu không có bảo hiểm"
+    }
   ]
 }
-

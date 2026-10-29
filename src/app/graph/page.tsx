@@ -135,7 +135,7 @@ export default function GraphPage() {
   const handleDemoRefuteA1 = () => {
     refuteAssumption(
       'A1',
-      'Khảo sát thực tế: 38% khách hàng hủy đơn hàng khi nhìn thấy phí ship 15k không đổi'
+      'Khảo sát đối tác SMB: 42% nhà bán phản ứng tiêu cực với mức phí 1.2%, dọa chuyển sang đơn vị tài chính khác'
     );
   };
 

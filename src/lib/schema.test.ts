@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('Extraction Schema and Hallucination Guard', () => {
-  const prdPath = path.join(process.cwd(), 'data', 'demo', 'prd-food-delivery.md');
+  const prdPath = path.join(process.cwd(), 'data', 'demo', 'prd-fintech-instant-payout.md');
   const cachedPath = path.join(process.cwd(), 'data', 'demo', 'extraction-cached.json');
   const prdText = fs.readFileSync(prdPath, 'utf-8');
   const cachedData = JSON.parse(fs.readFileSync(cachedPath, 'utf-8')) as ExtractionOutput;
