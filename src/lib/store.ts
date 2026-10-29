@@ -11,7 +11,10 @@ import {
   computeGraphMetrics,
   getNeedsReviewNodes,
   downstream,
-  effortAtRisk
+  effortAtRisk,
+  addEdgeSafe,
+  removeEdgeSafe,
+  removeNodeSafe
 } from './graph';
 import seedData from '../../data/demo/seed.json';
 import { ExtractedAssumption, ExtractedDecision, ExtractedLink } from './schema';
@@ -41,6 +44,27 @@ interface GraphStore {
   proposedDecisions: ExtractedDecision[];
   proposedLinks: ExtractedLink[];
   reviewDecisions: Record<string, { action: 'confirm' | 'reject'; text?: string; importance?: number }>;
+
+  // Phase 7: History for Undo / Redo
+  past: Array<{ nodes: GraphNode[]; edges: GraphEdge[] }>;
+  future: Array<{ nodes: GraphNode[]; edges: GraphEdge[] }>;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  undo: () => void;
+  redo: () => void;
+
+  // Phase 7: Manual Node & Edge Editing
+  addManualNode: (data: {
+    type: 'assumption' | 'decision' | 'task';
+    text: string;
+    importance?: number;
+    effortWeeks?: number;
+    owner?: string;
+    category?: string;
+  }) => string;
+  deleteNode: (nodeId: string) => void;
+  connectNodes: (from: string, to: string, reason?: string) => { success: boolean; error?: string };
+  disconnectNodes: (from: string, to: string) => void;
 
   // Derived getters
   getMetrics: (now?: Date) => ReturnType<typeof computeGraphMetrics>;
@@ -82,6 +106,134 @@ export const useGraphStore = create<GraphStore>()(
       edges: initialSeedGraph.edges,
       selectedNodeId: null,
       cascade: null,
+
+      // Phase 7: Undo / Redo
+      past: [],
+      future: [],
+      canUndo: () => get().past.length > 0,
+      canRedo: () => get().future.length > 0,
+      undo: () => {
+        const { past, future, nodes, edges } = get();
+        if (past.length === 0) return;
+        const previous = past[past.length - 1];
+        const newPast = past.slice(0, past.length - 1);
+        set({
+          past: newPast,
+          future: [{ nodes, edges }, ...future.slice(0, 24)],
+          nodes: previous.nodes,
+          edges: previous.edges,
+          cascade: null
+        });
+      },
+      redo: () => {
+        const { past, future, nodes, edges } = get();
+        if (future.length === 0) return;
+        const next = future[0];
+        const newFuture = future.slice(1);
+        set({
+          past: [...past.slice(-24), { nodes, edges }],
+          future: newFuture,
+          nodes: next.nodes,
+          edges: next.edges,
+          cascade: null
+        });
+      },
+
+      // Phase 7: Manual Node & Edge Editing
+      addManualNode: (data) => {
+        const { nodes, edges, past } = get();
+        const existingTyped = nodes.filter((n) => n.type === data.type);
+        const prefix = data.type === 'assumption' ? 'A' : data.type === 'decision' ? 'D' : 'T';
+
+        let maxIndex = 0;
+        for (const n of existingTyped) {
+          const match = n.id.match(/^([A-Z]+)(\d+)$/);
+          if (match && match[1] === prefix) {
+            const num = parseInt(match[2], 10);
+            if (num > maxIndex) maxIndex = num;
+          }
+        }
+        const newId = `${prefix}${maxIndex + 1}`;
+
+        let newNode: GraphNode;
+        if (data.type === 'assumption') {
+          newNode = {
+            id: newId,
+            type: 'assumption',
+            text: data.text,
+            status: 'unverified',
+            importance: data.importance || 3,
+            confidence: 0.5,
+            owner: data.owner || 'Chưa gán',
+            category: (data.category as any) || 'other',
+            whyItMatters: 'Giả định được thêm thủ công',
+            howToVerify: 'Xác thực qua khảo sát hoặc thử nghiệm thực tế'
+          };
+        } else if (data.type === 'decision') {
+          newNode = {
+            id: newId,
+            type: 'decision',
+            text: data.text,
+            status: 'active',
+            effortWeeks: data.effortWeeks || 1,
+            owner: data.owner
+          };
+        } else {
+          newNode = {
+            id: newId,
+            type: 'task',
+            text: data.text,
+            status: 'active',
+            effortWeeks: data.effortWeeks || 1,
+            owner: data.owner
+          };
+        }
+
+        set({
+          past: [...past.slice(-24), { nodes, edges }],
+          future: [],
+          nodes: [...nodes, newNode],
+          selectedNodeId: newId
+        });
+        return newId;
+      },
+
+      deleteNode: (nodeId: string) => {
+        const { nodes, edges, past, selectedNodeId } = get();
+        const res = removeNodeSafe(nodes, edges, nodeId);
+        set({
+          past: [...past.slice(-24), { nodes, edges }],
+          future: [],
+          nodes: res.nodes,
+          edges: res.edges,
+          selectedNodeId: selectedNodeId === nodeId ? null : selectedNodeId
+        });
+      },
+
+      connectNodes: (from: string, to: string, reason?: string) => {
+        const { nodes, edges, past } = get();
+        const nodeIds = new Set(nodes.map((n) => n.id));
+        const res = addEdgeSafe(edges, { from, to, relation: 'depends_on', reason }, nodeIds);
+        if (!res.success) {
+          return { success: false, error: res.error };
+        }
+        set({
+          past: [...past.slice(-24), { nodes, edges }],
+          future: [],
+          edges: res.edges
+        });
+        return { success: true };
+      },
+
+      disconnectNodes: (from: string, to: string) => {
+        const { nodes, edges, past } = get();
+        const nextEdges = removeEdgeSafe(edges, from, to);
+        set({
+          past: [...past.slice(-24), { nodes, edges }],
+          future: [],
+          edges: nextEdges
+        });
+      },
 
       proposedProjectName: null,
       proposedAssumptions: [],
@@ -133,9 +285,12 @@ export const useGraphStore = create<GraphStore>()(
       },
 
       updateNode: (id, updates) => {
-        set((state) => ({
-          nodes: state.nodes.map((n) => (n.id === id ? ({ ...n, ...updates } as GraphNode) : n))
-        }));
+        const { nodes, edges, past } = get();
+        set({
+          past: [...past.slice(-24), { nodes, edges }],
+          future: [],
+          nodes: nodes.map((n) => (n.id === id ? ({ ...n, ...updates } as GraphNode) : n))
+        });
       },
 
       refuteAssumption: (id, reason) => {

@@ -95,13 +95,13 @@ Lý do: toàn bộ câu hỏi "có đáng đi tiếp không" chỉ trả lời �
 
 ## Phase 7: Chỉnh đồ thị bằng tay (1 ngày)
 Lý do: liên kết do LLM đề xuất sẽ có chỗ sai; người dùng cần sửa được mà không phải trích xuất lại.
-- [ ] Thêm giả định / quyết định / task thủ công (nút "+" trên đồ thị và panel)
-- [ ] Kéo nối cạnh `depends_on` giữa hai nút trong React Flow, xóa cạnh; chặn hoặc cảnh báo khi tạo chu trình
-- [ ] Sửa nội dung, `importance`, `confidence`, `effortWeeks`, `owner`, `verifyBy` ngay trong panel
-- [ ] Gợi ý cạnh giả định → giả định (chuỗi giả định), người dùng duyệt từng gợi ý
-- [ ] Undo/redo cho thao tác trên đồ thị (lịch sử trong store)
-- [ ] Xóa nút có xác nhận, cạnh liên quan bị xóa kèm
-- Done when: thêm 1 quyết định, nối nó vào `A2`, refute `A2` thì quyết định mới bị đánh dấu `needs_review`; có test cho thêm/xóa cạnh và phát hiện chu trình.
+- [x] Thêm giả định / quyết định / task thủ công (nút "+" trên đồ thị và panel)
+- [x] Kéo nối cạnh `depends_on` giữa hai nút trong React Flow, xóa cạnh; chặn hoặc cảnh báo khi tạo chu trình
+- [x] Sửa nội dung, `importance`, `confidence`, `effortWeeks`, `owner`, `verifyBy` ngay trong panel
+- [x] Gợi ý cạnh giả định → giả định (chuỗi giả định), người dùng duyệt từng gợi ý
+- [x] Undo/redo cho thao tác trên đồ thị (lịch sử trong store)
+- [x] Xóa nút có xác nhận, cạnh liên quan bị xóa kèm
+- Done when: thêm 1 quyết định, nối nó vào `A2`, refute `A2` thì quyết định mới bị đánh dấu `needs_review`; có test cho thêm/xóa cạnh và phát hiện chu trình (15/15 tests in `graph.test.ts`).
 
 ## Phase 8: Task kiểm chứng (1 ngày, skill mới `task-generator`)
 Nguyên tắc: **đề xuất, người duyệt, rồi mới tạo**. Không tự tạo hàng loạt.

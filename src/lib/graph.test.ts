@@ -5,7 +5,11 @@ import {
   riskScore,
   debtTotal,
   getNeedsReviewNodes,
-  computeGraphMetrics
+  computeGraphMetrics,
+  wouldCreateCycle,
+  addEdgeSafe,
+  removeEdgeSafe,
+  removeNodeSafe
 } from './graph';
 import { GraphEdge, GraphNode, AssumptionNode, ProjectGraph } from './types';
 import seedData from '../../data/demo/seed.json';
@@ -129,6 +133,76 @@ describe('Assumption Debt Graph Engine', () => {
       expect(metrics.rankedAssumptions[0].assumptionId).toBe('A1'); // A1 is top risk
       expect(metrics.rankedAssumptions[0].riskScore).toBe(3.6);
       expect(metrics.rankedAssumptions[0].downstreamEffortWeeks).toBe(6.0);
+    });
+  });
+
+  describe('Phase 7: Manual Graph Editing & Safety', () => {
+    it('detects cycles before adding an edge', () => {
+      // Seed has D1 -> A1 (D1 depends on A1) and T1 -> D2 -> A1
+      // If we try to make A1 depend on D1, it should detect a cycle
+      expect(wouldCreateCycle('A1', 'D1', seedEdges)).toBe(true);
+
+      // If we make A1 depend on T1 (downstream leaf of A1), it creates a cycle
+      expect(wouldCreateCycle('A1', 'T1', seedEdges)).toBe(true);
+
+      // Valid new connection: D3 depends on A1 (no cycle)
+      expect(wouldCreateCycle('D3', 'A1', seedEdges)).toBe(false);
+    });
+
+    it('safely adds edge and rejects duplicates or cycles', () => {
+      const nodeIds = new Set(seedNodes.map((n) => n.id));
+
+      // Valid edge
+      const res1 = addEdgeSafe(seedEdges, { from: 'D3', to: 'A1', relation: 'depends_on' }, nodeIds);
+      expect(res1.success).toBe(true);
+      expect(res1.edges.length).toBe(seedEdges.length + 1);
+
+      // Duplicate edge rejected
+      const res2 = addEdgeSafe(seedEdges, { from: 'D1', to: 'A1', relation: 'depends_on' }, nodeIds);
+      expect(res2.success).toBe(false);
+      expect(res2.error).toContain('đã tồn tại');
+
+      // Cycle edge rejected
+      const res3 = addEdgeSafe(seedEdges, { from: 'A1', to: 'D1', relation: 'depends_on' }, nodeIds);
+      expect(res3.success).toBe(false);
+      expect(res3.error).toContain('Cycle detected');
+    });
+
+    it('removes edge cleanly', () => {
+      const updatedEdges = removeEdgeSafe(seedEdges, 'D1', 'A1');
+      expect(updatedEdges.some((e) => e.from === 'D1' && e.to === 'A1')).toBe(false);
+      expect(updatedEdges.length).toBe(seedEdges.length - 1);
+    });
+
+    it('removes node and cascades deletion of attached edges', () => {
+      const { nodes, edges } = removeNodeSafe(seedNodes, seedEdges, 'D1');
+      expect(nodes.some((n) => n.id === 'D1')).toBe(false);
+      expect(edges.some((e) => e.from === 'D1' || e.to === 'D1')).toBe(false);
+    });
+
+    it('refuting A2 marks manually connected decision as needs_review', () => {
+      // Add a manual decision D_manual that depends on A2
+      const manualDecision: GraphNode = {
+        id: 'D_manual',
+        type: 'decision',
+        text: 'Tích hợp API phụ trợ đối soát',
+        status: 'active',
+        effortWeeks: 2.0
+      };
+      const updatedNodes = [...seedNodes, manualDecision];
+      const updatedEdges: GraphEdge[] = [
+        ...seedEdges,
+        { from: 'D_manual', to: 'A2', relation: 'depends_on' }
+      ];
+
+      // Refute A2
+      const refutedNodes = updatedNodes.map((n) =>
+        n.id === 'A2' ? ({ ...n, status: 'refuted' } as AssumptionNode) : n
+      );
+
+      const reviewSet = getNeedsReviewNodes(refutedNodes, updatedEdges);
+      expect(reviewSet.has('D_manual')).toBe(true);
+      expect(reviewSet.has('D3')).toBe(true);
     });
   });
 });

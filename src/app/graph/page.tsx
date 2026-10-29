@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useCallback, useEffect } from 'react';
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -10,6 +10,7 @@ import {
   useEdgesState,
   Node,
   Edge,
+  Connection,
   MarkerType,
   BackgroundVariant
 } from '@xyflow/react';
@@ -30,7 +31,12 @@ import {
   ZoomOut,
   Maximize2,
   FileText,
-  Plus
+  Plus,
+  Undo2,
+  Redo2,
+  AlertCircle,
+  X,
+  Layers
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -52,11 +58,96 @@ export default function GraphPage() {
     cascade,
     proposedAssumptions,
     proposedProjectName,
-    commitReviewToGraph
+    commitReviewToGraph,
+    addManualNode,
+    connectNodes,
+    disconnectNodes,
+    undo,
+    redo,
+    canUndo,
+    canRedo
   } = useGraphStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  // Phase 7: Interactive Editing State
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addType, setAddType] = useState<'assumption' | 'decision' | 'task'>('assumption');
+  const [addText, setAddText] = useState('');
+  const [addImportance, setAddImportance] = useState(3);
+  const [addEffortWeeks, setAddEffortWeeks] = useState(1);
+  const [addOwner, setAddOwner] = useState('');
+
+  // Connect nodes via drag-and-drop
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      // In our graph layout: Left is prerequisite (`to`), Right is dependent (`from`)
+      let res = connectNodes(connection.target, connection.source);
+      if (!res.success) {
+        const resAlt = connectNodes(connection.source, connection.target);
+        if (resAlt.success) {
+          res = resAlt;
+        }
+      }
+      if (!res.success) {
+        setConnectError(res.error || 'Không thể tạo liên kết');
+        setTimeout(() => setConnectError(null), 4000);
+      }
+    },
+    [connectNodes]
+  );
+
+  // Delete edges via selection / Backspace
+  const onEdgesDelete = useCallback(
+    (deletedEdges: Edge[]) => {
+      for (const edge of deletedEdges) {
+        disconnectNodes(edge.target, edge.source);
+        disconnectNodes(edge.source, edge.target);
+      }
+    },
+    [disconnectNodes]
+  );
+
+  // Undo / Redo keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+        if (e.shiftKey) {
+          e.preventDefault();
+          redo();
+        } else {
+          e.preventDefault();
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+  const handleCreateNode = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addText.trim()) return;
+    addManualNode({
+      type: addType,
+      text: addText.trim(),
+      importance: addType === 'assumption' ? addImportance : undefined,
+      effortWeeks: addType !== 'assumption' ? addEffortWeeks : undefined,
+      owner: addOwner.trim() || undefined
+    });
+    setAddText('');
+    setAddOwner('');
+    setIsAddModalOpen(false);
+  };
 
   // Layout nodes whenever store nodes/edges or selection/cascade change
   useEffect(() => {
@@ -175,6 +266,26 @@ export default function GraphPage() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
+          {/* Phase 7: Undo / Redo */}
+          <div className="flex items-center gap-1 border-r border-slate-200 dark:border-slate-800 pr-2 mr-1">
+            <button
+              onClick={undo}
+              disabled={!canUndo()}
+              className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 transition"
+              title="Hoàn tác thao tác đồ thị (Ctrl+Z)"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo()}
+              className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 transition"
+              title="Làm lại thao tác đồ thị (Ctrl+Y)"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           {/* Quick Demo Button for Refuting A1 */}
           <button
             onClick={handleDemoRefuteA1}
@@ -183,6 +294,16 @@ export default function GraphPage() {
           >
             <Zap className="w-3.5 h-3.5 fill-current" />
             <span>Demo: Bác bỏ {storeNodes.find((n) => n.type === 'assumption')?.id || 'A1'}</span>
+          </button>
+
+          {/* Phase 7: Add Manual Node Button */}
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+            title="Thêm giả định, quyết định hoặc công việc thủ công vào đồ thị"
+          >
+            <Plus className="w-3.5 h-3.5 text-amber-500" />
+            <span>Thêm nút</span>
           </button>
 
           <button
@@ -238,6 +359,17 @@ export default function GraphPage() {
 
         {/* Left Side: React Flow Canvas */}
         <div className="flex-1 h-full w-full relative">
+          {/* Toast Alert for Connection Error */}
+          {connectError && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-rose-600 text-white px-4 py-2 rounded-xl shadow-xl text-xs font-semibold flex items-center gap-2 animate-in slide-in-from-top">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{connectError}</span>
+              <button onClick={() => setConnectError(null)} className="ml-2 hover:opacity-80">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -245,6 +377,8 @@ export default function GraphPage() {
             onEdgesChange={onEdgesChange}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
+            onConnect={onConnect}
+            onEdgesDelete={onEdgesDelete}
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={{ padding: 0.2 }}
@@ -291,6 +425,153 @@ export default function GraphPage() {
         {/* Right Side: Risk & Debt Panel */}
         <DebtPanel />
       </div>
+
+      {/* Modal: Thêm Nút Thủ Công (Phase 7) */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-amber-500" />
+                <span>Thêm nút mới vào đồ thị</span>
+              </h2>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNode} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Loại phần tử:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAddType('assumption')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold transition ${
+                      addType === 'assumption'
+                        ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Giả định
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddType('decision')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold transition ${
+                      addType === 'decision'
+                        ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Quyết định
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddType('task')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-semibold transition ${
+                      addType === 'task'
+                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500'
+                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    Công việc
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Nội dung:
+                </label>
+                <textarea
+                  rows={3}
+                  value={addText}
+                  onChange={(e) => setAddText(e.target.value)}
+                  placeholder={
+                    addType === 'assumption'
+                      ? 'Ví dụ: Khách hàng sẵn sàng xác nhận số CCCD với bot...'
+                      : addType === 'decision'
+                      ? 'Ví dụ: Dùng kiến trúc Event Sourcing...'
+                      : 'Ví dụ: Tích hợp API đối soát trong Sprint 2...'
+                  }
+                  className="w-full text-xs p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                    Người phụ trách:
+                  </label>
+                  <input
+                    type="text"
+                    value={addOwner}
+                    onChange={(e) => setAddOwner(e.target.value)}
+                    placeholder="VD: Tech Lead"
+                    className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+                  />
+                </div>
+
+                {addType === 'assumption' ? (
+                  <div>
+                    <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                      Tầm quan trọng (1-5):
+                    </label>
+                    <select
+                      value={addImportance}
+                      onChange={(e) => setAddImportance(Number(e.target.value))}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+                    >
+                      <option value={1}>1 - Thấp</option>
+                      <option value={2}>2 - Vừa</option>
+                      <option value={3}>3 - Trung bình</option>
+                      <option value={4}>4 - Cao</option>
+                      <option value={5}>5 - Rất nghiêm trọng</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                      Thời gian (tuần):
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={addEffortWeeks}
+                      onChange={(e) => setAddEffortWeeks(Number(e.target.value))}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl transition shadow"
+                >
+                  Tạo Nút
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

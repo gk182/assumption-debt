@@ -17,6 +17,7 @@ export interface BaseNode {
   type: NodeType;
   text: string;
   effortWeeks?: number;
+  owner?: string;
   source?: SourceReference;
 }
 

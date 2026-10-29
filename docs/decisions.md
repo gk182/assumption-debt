@@ -11,4 +11,5 @@ Tài liệu này ghi lại các quyết định phạm vi và kiến trúc theo 
 | 2026-10-29 | Thư viện biểu diễn đồ thị | `@xyflow/react` (React Flow v12) + `dagre` | Đủ mạnh mẽ để render DAG từ trái sang phải, tuỳ biến node card và cascade animation |
 | 2026-10-29 | Phase 6b: Chia đoạn và khử trùng lặp | Pure functions `chunkDocumentByHeadings` & `deduplicateAssumptions` trong `src/lib/chunking.ts` | Hỗ trợ tài liệu dài không bị nghẽn context window, loại bỏ các giả định trùng quote hoặc độ tương đồng cao |
 | 2026-10-29 | Phase 6b: Đánh giá Gold Set & Cổng quyết định | 3 tài liệu thật (Fintech, ADR Redis, AI Call Center) đạt Novelty 66.7%, Precision 100% | Quyết định GO chính thức để tiếp tục phát triển Phase 7 (chỉnh đồ thị tay) và Phase 8 (task kiểm chứng) |
+| 2026-10-29 | Phase 7: Chỉnh sửa đồ thị bằng tay & Undo/Redo | Pure functions `addEdgeSafe`, `removeEdgeSafe`, `removeNodeSafe`, `wouldCreateCycle` và Undo/Redo stack trong Zustand | Cho phép người dùng can thiệp sửa sai sót của AI, kéo nối/xóa liên kết, thêm nút thủ công mà không phá vỡ cấu trúc DAG |
 

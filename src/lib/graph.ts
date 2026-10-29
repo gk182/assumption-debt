@@ -208,3 +208,83 @@ export function computeGraphMetrics(
     rankedAssumptions
   };
 }
+
+/**
+ * Detects if adding an edge from `from` to `to` creates a directed cycle.
+ * Edge convention: { from: 'D1', to: 'A1' } means D1 depends on A1.
+ * A cycle would mean `from` is already an ancestor of `to` (or `to` is in `downstream(from)`).
+ */
+export function wouldCreateCycle(
+  from: string,
+  to: string,
+  edges: GraphEdge[]
+): boolean {
+  if (from === to) return true;
+  const down = downstream(from, edges);
+  return down.nodes.includes(to);
+}
+
+/**
+ * Adds an edge to the graph if it is valid and does not create a cycle.
+ */
+export function addEdgeSafe(
+  edges: GraphEdge[],
+  newEdge: GraphEdge,
+  nodeIds?: Set<string>
+): { edges: GraphEdge[]; success: boolean; error?: string } {
+  const { from, to } = newEdge;
+  if (!from || !to) {
+    return { edges, success: false, error: 'Thiếu điểm đầu hoặc điểm cuối' };
+  }
+  if (from === to) {
+    return { edges, success: false, error: 'Không thể tự nối vào chính mình' };
+  }
+  if (nodeIds && (!nodeIds.has(from) || !nodeIds.has(to))) {
+    return { edges, success: false, error: 'Nút không tồn tại trong đồ thị' };
+  }
+
+  // Check if edge already exists
+  const exists = edges.some((e) => e.from === from && e.to === to);
+  if (exists) {
+    return { edges, success: false, error: 'Liên kết này đã tồn tại' };
+  }
+
+  // Check cycle
+  if (wouldCreateCycle(from, to, edges)) {
+    return {
+      edges,
+      success: false,
+      error: 'Không thể tạo liên kết: Sẽ gây ra chu trình phụ thuộc vòng kín (Cycle detected)!'
+    };
+  }
+
+  return {
+    edges: [...edges, newEdge],
+    success: true
+  };
+}
+
+/**
+ * Removes an edge between `from` and `to`.
+ */
+export function removeEdgeSafe(
+  edges: GraphEdge[],
+  from: string,
+  to: string
+): GraphEdge[] {
+  return edges.filter((e) => !(e.from === from && e.to === to));
+}
+
+/**
+ * Removes a node and all connected edges from the graph.
+ */
+export function removeNodeSafe(
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  nodeId: string
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const nextNodes = nodes.filter((n) => n.id !== nodeId);
+  const nextEdges = edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
+  return { nodes: nextNodes, edges: nextEdges };
+}
+

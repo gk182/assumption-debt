@@ -13,7 +13,11 @@ import {
   Flame,
   ShieldCheck,
   RotateCcw,
-  Clock
+  Clock,
+  Edit3,
+  Trash2,
+  Save,
+  X
 } from 'lucide-react';
 
 export function DebtPanel() {
@@ -22,6 +26,8 @@ export function DebtPanel() {
     selectedNodeId,
     selectNode,
     getMetrics,
+    updateNode,
+    deleteNode,
     refuteAssumption,
     validateAssumption,
     resetAssumptionStatus,
@@ -31,9 +37,62 @@ export function DebtPanel() {
   const [refuteReason, setRefuteReason] = useState('');
   const [showRefuteInput, setShowRefuteInput] = useState(false);
 
+  // Inline editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftText, setDraftText] = useState('');
+  const [draftOwner, setDraftOwner] = useState('');
+  const [draftImportance, setDraftImportance] = useState(3);
+  const [draftEffortWeeks, setDraftEffortWeeks] = useState(1);
+  const [draftVerifyBy, setDraftVerifyBy] = useState('');
+
   const metrics = getMetrics();
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const downstreamResult = getDownstreamOfSelected();
+
+  // Reset or initialize edit drafts when selectedNode changes
+  React.useEffect(() => {
+    if (selectedNode) {
+      setDraftText(selectedNode.text);
+      setDraftOwner(selectedNode.owner || '');
+      if (selectedNode.type === 'assumption') {
+        const a = selectedNode as AssumptionNode;
+        setDraftImportance(a.importance);
+        setDraftVerifyBy(a.verifyBy || '');
+      } else {
+        setDraftEffortWeeks(selectedNode.effortWeeks || 1);
+      }
+      setIsEditing(false);
+      setShowRefuteInput(false);
+    }
+  }, [selectedNodeId]);
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedNodeId || !selectedNode) return;
+
+    if (selectedNode.type === 'assumption') {
+      updateNode(selectedNodeId, {
+        text: draftText.trim(),
+        owner: draftOwner.trim() || undefined,
+        importance: Number(draftImportance),
+        verifyBy: draftVerifyBy || undefined
+      } as Partial<AssumptionNode>);
+    } else {
+      updateNode(selectedNodeId, {
+        text: draftText.trim(),
+        owner: draftOwner.trim() || undefined,
+        effortWeeks: Number(draftEffortWeeks)
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const handleDeleteNode = () => {
+    if (!selectedNodeId) return;
+    if (window.confirm(`Bạn có chắc muốn xóa nút ${selectedNodeId} và toàn bộ liên kết gắn với nút này?`)) {
+      deleteNode(selectedNodeId);
+    }
+  };
 
   const handleRefuteSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,22 +150,131 @@ export function DebtPanel() {
       {selectedNode && (
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-blue-50/30 dark:bg-blue-950/10">
           <div className="flex items-center justify-between mb-2">
-            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-600 text-white">
-              {selectedNode.id}
-            </span>
-            <span className="text-xs font-medium text-slate-500 capitalize">
-              {selectedNode.type}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-blue-600 text-white">
+                {selectedNode.id}
+              </span>
+              <span className="text-xs font-medium text-slate-500 capitalize">
+                {selectedNode.type}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setIsEditing(!isEditing)}
+                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition"
+                title="Sửa thông tin nút"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleDeleteNode}
+                className="p-1 rounded hover:bg-rose-100 dark:hover:bg-rose-950 text-rose-600 transition"
+                title="Xóa nút này"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
-          <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2">
-            {selectedNode.text}
-          </p>
+          {/* Edit Form if isEditing */}
+          {isEditing ? (
+            <form onSubmit={handleSaveEdit} className="space-y-2.5 my-2 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <div>
+                <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
+                  Nội dung nút:
+                </label>
+                <textarea
+                  rows={2}
+                  value={draftText}
+                  onChange={(e) => setDraftText(e.target.value)}
+                  className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  required
+                />
+              </div>
 
-          {selectedNode.source?.quote && (
-            <div className="p-2 mb-3 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[11px] italic text-slate-600 dark:text-slate-300">
-              &ldquo;{selectedNode.source.quote}&rdquo;
-            </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-0.5">Phụ trách:</label>
+                  <input
+                    type="text"
+                    value={draftOwner}
+                    onChange={(e) => setDraftOwner(e.target.value)}
+                    placeholder="VD: Tech Lead"
+                    className="w-full text-xs p-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900"
+                  />
+                </div>
+
+                {selectedNode.type === 'assumption' ? (
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">Tầm quan trọng (1-5):</label>
+                    <select
+                      value={draftImportance}
+                      onChange={(e) => setDraftImportance(Number(e.target.value))}
+                      className="w-full text-xs p-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900"
+                    >
+                      <option value={1}>1 - Thấp</option>
+                      <option value={2}>2 - Vừa</option>
+                      <option value={3}>3 - Trung bình</option>
+                      <option value={4}>4 - Cao</option>
+                      <option value={5}>5 - Rất nghiêm trọng</option>
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-0.5">Thời gian (tuần):</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={draftEffortWeeks}
+                      onChange={(e) => setDraftEffortWeeks(Number(e.target.value))}
+                      className="w-full text-xs p-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {selectedNode.type === 'assumption' && (
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-0.5">Hạn kiểm chứng:</label>
+                  <input
+                    type="date"
+                    value={draftVerifyBy}
+                    onChange={(e) => setDraftVerifyBy(e.target.value)}
+                    className="w-full text-xs p-1.5 rounded border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900"
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-700"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-3 py-1 text-xs bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded flex items-center gap-1 shadow-sm"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Lưu</span>
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mb-2">
+                {selectedNode.text}
+              </p>
+
+              {selectedNode.source?.quote && (
+                <div className="p-2 mb-3 rounded-lg bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-[11px] italic text-slate-600 dark:text-slate-300">
+                  &ldquo;{selectedNode.source.quote}&rdquo;
+                </div>
+              )}
+            </>
           )}
 
           {/* Downstream impact summary if assumption */}
