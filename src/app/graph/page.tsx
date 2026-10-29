@@ -10,6 +10,7 @@ import {
   useEdgesState,
   Node,
   Edge,
+  MarkerType,
   BackgroundVariant
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -47,18 +48,77 @@ export default function GraphPage() {
     selectNode,
     resetToInitial,
     refuteAssumption,
-    selectedNodeId
+    selectedNodeId,
+    cascade
   } = useGraphStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  // Layout nodes whenever store nodes/edges change
+  // Layout nodes whenever store nodes/edges or selection/cascade change
   useEffect(() => {
     const { flowNodes, flowEdges } = getLayoutedElements(storeNodes, storeEdges, 'LR');
+
+    const styledEdges = flowEdges.map((edge) => {
+      const isCascade =
+        cascade?.isActive &&
+        (edge.source === cascade.refutedId ||
+          cascade.affectedNodeIds.includes(edge.target) ||
+          cascade.affectedNodeIds.includes(edge.source));
+
+      const isSelected =
+        selectedNodeId &&
+        (edge.source === selectedNodeId || edge.target === selectedNodeId);
+
+      if (isCascade) {
+        return {
+          ...edge,
+          animated: true,
+          style: { stroke: '#f43f5e', strokeWidth: 3 },
+          markerStart: {
+            type: MarkerType.ArrowClosed,
+            width: 14,
+            height: 14,
+            color: '#f43f5e'
+          }
+        };
+      }
+
+      if (isSelected) {
+        return {
+          ...edge,
+          animated: true,
+          style: { stroke: '#f59e0b', strokeWidth: 2.5 },
+          markerStart: {
+            type: MarkerType.ArrowClosed,
+            width: 14,
+            height: 14,
+            color: '#f59e0b'
+          }
+        };
+      }
+
+      const isDimmed = cascade?.isActive || !!selectedNodeId;
+      return {
+        ...edge,
+        animated: false,
+        style: {
+          stroke: '#94a3b8',
+          strokeWidth: 1.8,
+          opacity: isDimmed ? 0.3 : 0.85
+        },
+        markerStart: {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+          color: isDimmed ? '#cbd5e1' : '#64748b'
+        }
+      };
+    });
+
     setNodes(flowNodes);
-    setEdges(flowEdges);
-  }, [storeNodes, storeEdges, setNodes, setEdges]);
+    setEdges(styledEdges);
+  }, [storeNodes, storeEdges, selectedNodeId, cascade, setNodes, setEdges]);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {

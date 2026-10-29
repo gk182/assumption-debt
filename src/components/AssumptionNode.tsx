@@ -67,12 +67,12 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-2.5 !h-2.5 !bg-amber-500 !border-2 !border-white dark:!border-slate-900"
+        className="!w-3 !h-3 !bg-amber-500 !border-2 !border-white dark:!border-slate-900 !rounded-full shadow-sm hover:scale-125 transition-transform"
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-2.5 !h-2.5 !bg-amber-500 !border-2 !border-white dark:!border-slate-900"
+        className="!w-3 !h-3 !bg-amber-500 !border-2 !border-white dark:!border-slate-900 !rounded-full shadow-sm hover:scale-125 transition-transform"
       />
 
       {/* Header with ID and Status Badge */}
