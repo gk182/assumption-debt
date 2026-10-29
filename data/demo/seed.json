@@ -1,0 +1,29 @@
+{
+  "project": "Ung dung giao do an (demo)",
+  "nodes": [
+    {"id":"A1","type":"assumption","text":"Khach chap nhan phi ship 15k ma khong bo gio hang","status":"unverified","importance":5,"confidence":0.4,"effortWeeks":0,"owner":"PM","verifyBy":"2026-11-15","source":{"doc":"prd-food-delivery.md","quote":"Phi ship co dinh 15k la hop ly voi hau het khach hang"}},
+    {"id":"A2","type":"assumption","text":"API ban do ben thu ba on dinh ve gia va gioi han goi den luc ra mat","status":"unverified","importance":4,"confidence":0.6,"effortWeeks":0,"owner":"Tech lead","verifyBy":"2026-11-30","source":{"doc":"prd-food-delivery.md","quote":"Chung ta dung Google Maps nen khong lo ve khoang cach va ETA"}},
+    {"id":"A3","type":"assumption","text":"Quan an se tu cap nhat menu moi ngay","status":"unverified","importance":4,"confidence":0.3,"effortWeeks":0,"owner":"Ops","verifyBy":"2026-11-10","source":{"doc":"prd-food-delivery.md","quote":"Quan se tu cap nhat menu hang ngay qua form don gian"}},
+    {"id":"A4","type":"assumption","text":"Khach dat mon it nhat 2 lan moi tuan","status":"unverified","importance":4,"confidence":0.5,"effortWeeks":0,"owner":"PM","verifyBy":"2026-12-01","source":{"doc":"prd-food-delivery.md","quote":"Khach hang trung thanh se dat 2 lan moi tuan"}},
+    {"id":"D1","type":"decision","text":"Bo chuong trinh freeship","status":"active","effortWeeks":1,"source":{"doc":"prd-food-delivery.md","quote":"Bo freeship de bao ve bien loi nhuan"}},
+    {"id":"D2","type":"decision","text":"Phi ship co dinh, khong dong theo khoang cach/gio cao diem","status":"active","effortWeeks":1.5,"source":{"doc":"prd-food-delivery.md","quote":"Phi ship co dinh 15k"}},
+    {"id":"D3","type":"decision","text":"Dung Google Maps cho khoang cach va ETA","status":"active","effortWeeks":2,"source":{"doc":"prd-food-delivery.md","quote":"Chung ta dung Google Maps"}},
+    {"id":"D4","type":"decision","text":"Khong xay cong cu quan ly menu tu dong, quan cap nhat thu cong","status":"active","effortWeeks":1,"source":{"doc":"prd-food-delivery.md","quote":"khong can import menu tu POS"}},
+    {"id":"D5","type":"decision","text":"Ban goi dang ky thang cho khach thuong xuyen","status":"active","effortWeeks":3,"source":{"doc":"prd-food-delivery.md","quote":"Goi thang 99k cho khach hang trung thanh"}},
+    {"id":"T1","type":"task","text":"Sprint 3: toi uu doanh thu tu phi ship","status":"active","effortWeeks":3.5},
+    {"id":"T2","type":"task","text":"Tich hop ETA realtime","status":"active","effortWeeks":2},
+    {"id":"T3","type":"task","text":"Man hinh nhac quan cap nhat menu","status":"active","effortWeeks":1},
+    {"id":"T4","type":"task","text":"Billing cho goi dang ky","status":"active","effortWeeks":2}
+  ],
+  "edges": [
+    {"from":"D1","to":"A1","relation":"depends_on"},
+    {"from":"D2","to":"A1","relation":"depends_on"},
+    {"from":"T1","to":"D2","relation":"depends_on"},
+    {"from":"D3","to":"A2","relation":"depends_on"},
+    {"from":"T2","to":"D3","relation":"depends_on"},
+    {"from":"D4","to":"A3","relation":"depends_on"},
+    {"from":"T3","to":"D4","relation":"depends_on"},
+    {"from":"D5","to":"A4","relation":"depends_on"},
+    {"from":"T4","to":"D5","relation":"depends_on"}
+  ]
+}

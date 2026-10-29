@@ -1,0 +1,163 @@
+{
+  "assumptions": [
+    {
+      "tempId": "a1",
+      "text": "Khách hàng chấp nhận phí ship cố định 15k mà không bỏ giỏ hàng",
+      "category": "user_behavior",
+      "source": {
+        "quote": "Phi ship co dinh 15k la hop ly voi hau het khach hang",
+        "location": "Phi giao hang"
+      },
+      "evidenceInDoc": "none",
+      "suggestedImportance": 5,
+      "whyItMatters": "Nếu khách từ chối phí ship, tỉ lệ chuyển đổi sẽ giảm mạnh và mô hình doanh thu sụp đổ",
+      "howToVerify": "Chạy thử nghiệm A/B test hoặc khảo sát 50 khách hàng về mức sẵn sàng trả 15k phí ship",
+      "verifyWithinDays": 7
+    },
+    {
+      "tempId": "a2",
+      "text": "API Google Maps ổn định về chi phí và không bị chạm hạn mức gọi (quota)",
+      "category": "technical_dependency",
+      "source": {
+        "quote": "Chung ta dung Google Maps nen khong lo ve khoang cach va ETA",
+        "location": "Ban do va ETA"
+      },
+      "evidenceInDoc": "weak",
+      "suggestedImportance": 4,
+      "whyItMatters": "Chi phí gọi API Maps realtime có thể tăng vọt ngoài dự toán ngân sách",
+      "howToVerify": "Mô phỏng lưu lượng 5.000 đơn/ngày và tính toán chi phí gọi Google Distance Matrix API",
+      "verifyWithinDays": 10
+    },
+    {
+      "tempId": "a3",
+      "text": "Các quán ăn có kỷ luật tự cập nhật menu và tình trạng hết món mỗi ngày qua form",
+      "category": "user_behavior",
+      "source": {
+        "quote": "Quan se tu cap nhat menu hang ngay qua form don gian",
+        "location": "Menu"
+      },
+      "evidenceInDoc": "none",
+      "suggestedImportance": 4,
+      "whyItMatters": "Nếu quán quên cập nhật, khách đặt món đã hết dẫn đến huỷ đơn và trải nghiệm xấu",
+      "howToVerify": "Phỏng vấn 10 chủ quán đối tác về quy trình vận hành đầu ngày",
+      "verifyWithinDays": 5
+    },
+    {
+      "tempId": "a4",
+      "text": "Khách hàng trung thành sẽ duy trì tần suất đặt món ít nhất 2 lần mỗi tuần",
+      "category": "market",
+      "source": {
+        "quote": "Khach hang trung thanh se dat 2 lan moi tuan",
+        "location": "Khach hang trung thanh"
+      },
+      "evidenceInDoc": "none",
+      "suggestedImportance": 4,
+      "whyItMatters": "Gói thuê bao 99k/tháng sẽ không có người mua nếu tần suất đặt thực tế thấp hơn",
+      "howToVerify": "Phân tích dữ liệu lịch sử đặt hàng của nhóm khách dùng thử",
+      "verifyWithinDays": 14
+    }
+  ],
+  "decisions": [
+    {
+      "tempId": "d1",
+      "text": "Bỏ chính sách freeship để bảo vệ biên lợi nhuận",
+      "kind": "decision",
+      "source": {
+        "quote": "Bo freeship de bao ve bien loi nhuan",
+        "location": "Phi giao hang"
+      },
+      "estimatedEffortWeeks": 1
+    },
+    {
+      "tempId": "d2",
+      "text": "Áp dụng phí ship cố định 15k toàn hệ thống",
+      "kind": "decision",
+      "source": {
+        "quote": "Phi ship co dinh 15k",
+        "location": "Phi giao hang"
+      },
+      "estimatedEffortWeeks": 1.5
+    },
+    {
+      "tempId": "d3",
+      "text": "Dùng Google Maps API cho bài toán tính khoảng cách và ETA",
+      "kind": "decision",
+      "source": {
+        "quote": "Chung ta dung Google Maps",
+        "location": "Ban do va ETA"
+      },
+      "estimatedEffortWeeks": 2
+    },
+    {
+      "tempId": "d4",
+      "text": "Không làm tính năng đồng bộ POS tự động, quán nhập thủ công",
+      "kind": "decision",
+      "source": {
+        "quote": "khong can import menu tu POS",
+        "location": "Menu"
+      },
+      "estimatedEffortWeeks": 1
+    },
+    {
+      "tempId": "d5",
+      "text": "Phát hành gói thành viên 99k/tháng cho khách hàng trung thành",
+      "kind": "decision",
+      "source": {
+        "quote": "Goi thang 99k cho khach hang trung thanh",
+        "location": "Khach hang trung thanh"
+      },
+      "estimatedEffortWeeks": 3
+    },
+    {
+      "tempId": "t1",
+      "text": "Sprint 3: Tối ưu doanh thu từ phí ship",
+      "kind": "task",
+      "source": {
+        "quote": "Sprint 3 se toi uu doanh thu tu phi ship",
+        "location": "Phi giao hang"
+      },
+      "estimatedEffortWeeks": 3.5
+    },
+    {
+      "tempId": "t2",
+      "text": "Sprint 4: Tích hợp ETA realtime với Google Maps",
+      "kind": "task",
+      "source": {
+        "quote": "Tich hop ETA realtime trong sprint 4",
+        "location": "Ban do va ETA"
+      },
+      "estimatedEffortWeeks": 2
+    },
+    {
+      "tempId": "t3",
+      "text": "Sprint 5: Màn hình nhắc quán cập nhật menu",
+      "kind": "task",
+      "source": {
+        "quote": "Man hinh nhac quan cap nhat menu se lam o sprint 5",
+        "location": "Menu"
+      },
+      "estimatedEffortWeeks": 1
+    },
+    {
+      "tempId": "t4",
+      "text": "Sprint 6: Hệ thống billing cho gói thuê bao tháng",
+      "kind": "task",
+      "source": {
+        "quote": "billing lam o sprint 6",
+        "location": "Khach hang trung thanh"
+      },
+      "estimatedEffortWeeks": 2
+    }
+  ],
+  "links": [
+    { "from": "d1", "to": "a1", "relation": "depends_on", "reason": "Bỏ freeship chỉ khả thi nếu khách chấp nhận trả 15k ship" },
+    { "from": "d2", "to": "a1", "relation": "depends_on", "reason": "Phí ship cố định 15k dựa trên giả định khách đồng thuận mức giá này" },
+    { "from": "t1", "to": "d2", "relation": "depends_on", "reason": "Công việc sprint 3 xây dựng trên quyết định áp dụng phí ship 15k" },
+    { "from": "d3", "to": "a2", "relation": "depends_on", "reason": "Chọn Google Maps vì giả định API ổn định và chi phí chấp nhận được" },
+    { "from": "t2", "to": "d3", "relation": "depends_on", "reason": "Tích hợp ETA là hiện thực hóa của quyết định dùng Google Maps" },
+    { "from": "d4", "to": "a3", "relation": "depends_on", "reason": "Không làm POS vì tin rằng quán sẽ tự điền form hàng ngày" },
+    { "from": "t3", "to": "d4", "relation": "depends_on", "reason": "Màn hình nhắc nhở phục vụ quy trình quán cập nhật thủ công" },
+    { "from": "d5", "to": "a4", "relation": "depends_on", "reason": "Gói 99k chỉ hấp dẫn nếu khách thực sự đặt từ 2 lần/tuần trở lên" },
+    { "from": "t4", "to": "d5", "relation": "depends_on", "reason": "Làm module billing để thu tiền gói 99k" }
+  ]
+}
