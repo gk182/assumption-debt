@@ -10,9 +10,13 @@ import {
   ShieldCheck,
   Database,
   FlaskConical,
-  Zap,
-  Info
+  Info,
+  Cpu,
+  Key,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+import { LLMProvider, PROVIDER_CONFIGS } from '@/lib/llm/types';
 
 const SAMPLE_PRD = `# PRD: Chi ho tuc thi va Ung von ban hang (Instant Merchant Advance v1.0)
 
@@ -50,7 +54,19 @@ export default function PasteExtractPage() {
     return process.env.NEXT_PUBLIC_ENABLE_PRODUCT_FLOW === 'true';
   });
 
+  // Chọn Provider & Model
+  const [selectedProvider, setSelectedProvider] = useState<LLMProvider>('gemini');
+  const [selectedModel, setSelectedModel] = useState<string>(PROVIDER_CONFIGS.gemini.defaultModel);
+  const [customApiKey, setCustomApiKey] = useState<string>('');
+  const [showKeyAccordion, setShowKeyAccordion] = useState<boolean>(false);
+
   const { setProposedData, loadSeedData } = useGraphStore();
+
+  const handleProviderChange = (provider: LLMProvider) => {
+    setSelectedProvider(provider);
+    setSelectedModel(PROVIDER_CONFIGS[provider].defaultModel);
+    setErrorMsg(null);
+  };
 
   const handleLoadSample = () => {
     setDocText(SAMPLE_PRD);
@@ -73,7 +89,10 @@ export default function PasteExtractPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           documentText: docText,
-          useProductFlow: isProductFlow
+          useProductFlow: isProductFlow,
+          provider: selectedProvider,
+          model: selectedModel,
+          apiKey: customApiKey.trim() || undefined
         })
       });
 
@@ -102,6 +121,8 @@ export default function PasteExtractPage() {
     loadSeedData();
     router.push('/graph');
   };
+
+  const currentProviderConfig = PROVIDER_CONFIGS[selectedProvider];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
@@ -148,7 +169,7 @@ export default function PasteExtractPage() {
         </div>
 
         {/* Biến bật/tắt Flow: Mockup vs Product Flow */}
-        <div className="mb-5 p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="mb-4 p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <div
               className={`p-2.5 rounded-xl flex-shrink-0 transition-colors ${
@@ -172,12 +193,12 @@ export default function PasteExtractPage() {
                       : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
                   }`}
                 >
-                  {isProductFlow ? 'Live Anthropic AI' : 'Mockup Offline'}
+                  {isProductFlow ? 'Live Multi-LLM' : 'Mockup Offline'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 {isProductFlow
-                  ? 'Gửi văn bản tới mô hình Anthropic Claude (yêu cầu ANTHROPIC_API_KEY trong .env.local).'
+                  ? 'Gửi văn bản tới mô hình AI (hỗ trợ chọn Gemini, Claude, OpenAI) để trích xuất thời gian thực.'
                   : 'Sử dụng file mẫu có sẵn (data/demo/extraction-cached.json) giúp test trọn vẹn mọi tính năng 100% offline.'}
               </p>
             </div>
@@ -206,6 +227,90 @@ export default function PasteExtractPage() {
             </button>
           </div>
         </div>
+
+        {/* Khung cấu hình Multi-Model khi bật Product Flow */}
+        {isProductFlow && (
+          <div className="mb-4 p-4 rounded-2xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-purple-900 dark:text-purple-200">
+                <Cpu className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <span>Tùy chọn mô hình AI (Multi-Model Support)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKeyAccordion(!showKeyAccordion)}
+                className="text-[11px] text-purple-700 dark:text-purple-300 flex items-center gap-1 hover:underline"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>{showKeyAccordion ? 'Ẩn ô nhập API Key' : 'Tùy chỉnh API Key riêng'}</span>
+                {showKeyAccordion ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Chọn Nhà cung cấp */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Nhà cung cấp AI:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['gemini', 'anthropic', 'openai'] as LLMProvider[]).map((p) => {
+                    const cfg = PROVIDER_CONFIGS[p];
+                    const isSelected = selectedProvider === p;
+                    return (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => handleProviderChange(p)}
+                        className={`text-xs py-1.5 px-2 rounded-lg font-semibold transition border text-center ${
+                          isSelected
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-purple-300'
+                        }`}
+                      >
+                        {cfg.name.replace('Google ', '').replace('Anthropic ', '')}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Chọn Model cụ thể */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Mô hình ({currentProviderConfig.name}):
+                </label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full text-xs py-1.5 px-2.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+                >
+                  {currentProviderConfig.availableModels.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Ô nhập API Key tùy chọn nếu không muốn sửa .env.local */}
+            {showKeyAccordion && (
+              <div className="pt-2 border-t border-purple-200/60 dark:border-purple-900/40">
+                <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  Nhập API Key {currentProviderConfig.name} (Tùy chọn - nếu bỏ trống sẽ đọc từ .env.local):
+                </label>
+                <input
+                  type="password"
+                  value={customApiKey}
+                  onChange={(e) => setCustomApiKey(e.target.value)}
+                  placeholder={`Ví dụ: ${currentProviderConfig.envKeyName}=...`}
+                  className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Input Form */}
         <form onSubmit={handleExtract} className="space-y-4">
@@ -236,8 +341,8 @@ export default function PasteExtractPage() {
               <span className="flex items-center gap-1 text-[11px]">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                 {isProductFlow
-                  ? 'Bộ lọc chống bịa: Tự động loại bỏ bất kỳ mục nào có quote không nằm trong văn bản'
-                  : 'Chế độ Mockup: Nạp 4 giả định và 5 quyết định mẫu kèm liên kết phụ thuộc'}
+                  ? `Đang dùng ${currentProviderConfig.name} (${selectedModel}). Quote 100% nguyên văn.`
+                  : 'Chế độ Mockup: Nạp kết quả giả định mẫu hoàn chỉnh để test không cần API key.'}
               </span>
               <span>{docText.length} ký tự</span>
             </div>
@@ -256,7 +361,7 @@ export default function PasteExtractPage() {
           <div className="flex items-center justify-between pt-2">
             <div className="text-xs text-slate-500">
               {isProductFlow
-                ? 'Đang bật Product Flow. Sẽ gọi Anthropic Claude API.'
+                ? `Mô hình: ${currentProviderConfig.name} (${selectedModel})`
                 : 'Đang dùng Mockup Flow. Sẽ nạp file mẫu offline ngay lập tức.'}
             </div>
 
@@ -272,12 +377,12 @@ export default function PasteExtractPage() {
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span>Đang trích xuất...</span>
+                  <span>Đang trích xuất với {selectedProvider}...</span>
                 </>
               ) : (
                 <>
                   <span>
-                    {isProductFlow ? 'Trích xuất bằng AI' : 'Trích xuất Giả định (Mockup)'}
+                    {isProductFlow ? `Trích xuất bằng ${currentProviderConfig.name}` : 'Trích xuất Giả định (Mockup)'}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </>

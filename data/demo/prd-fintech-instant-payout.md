@@ -22,3 +22,4 @@ Sprint 3: Thiet ke UI UX Vi doi tac va Luong rut tien 1 cham tren Merchant Porta
 Khong trien khai mua bao hiem tin dung Credit Insurance trong giai doan v1 de bao ve bien loi nhuan rong tren 40%.
 Tu dong khau tru tien no goc tu cac don hang phat sinh tiep theo. Nguoi ban se tiep tuc duy tri gian hang va phat sinh don hang deu dan de hoan tra khoan ung.
 Sprint 4: Module tu dong thu hoi no goi dau tu don hang phat sinh tiep theo.
+
