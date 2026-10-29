@@ -110,14 +110,18 @@ export function filterHallucinations(
     }
   }
 
-  const validNodeIds = new Set([
-    ...validAssumptions.map((a) => a.tempId),
-    ...output.decisions.map((d) => d.tempId)
+  const validNodeIdsLower = new Set([
+    ...validAssumptions.map((a) => a.tempId.toLowerCase()),
+    ...output.decisions.map((d) => d.tempId.toLowerCase())
   ]);
 
-  // Keep links connecting valid nodes where neither endpoint was dropped
+  // Keep links connecting valid nodes where neither endpoint was dropped (case-insensitive check)
   const validLinks = output.links.filter(
-    (l) => validNodeIds.has(l.from) && validNodeIds.has(l.to)
+    (l) =>
+      l.from &&
+      l.to &&
+      validNodeIdsLower.has(l.from.toLowerCase()) &&
+      validNodeIdsLower.has(l.to.toLowerCase())
   );
 
   return {

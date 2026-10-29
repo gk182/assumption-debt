@@ -17,6 +17,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import { LLMProvider, PROVIDER_CONFIGS } from '@/lib/llm/types';
+import { SAMPLE_DOCS, extractProjectTitleFromDoc } from '@/lib/sampleDocs';
 
 const SAMPLE_PRD = `# PRD: Chi ho tuc thi va Ung von ban hang (Instant Merchant Advance v1.0)
 
@@ -59,13 +60,14 @@ function extractProjectTitle(docText: string): string {
 
 export default function PasteExtractPage() {
   const router = useRouter();
-  const [docText, setDocText] = useState(SAMPLE_PRD);
+  const [docText, setDocText] = useState(SAMPLE_DOCS[0]?.content || SAMPLE_PRD);
+  const [selectedDocId, setSelectedDocId] = useState<string>('bookspa');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Biến bật tắt flow: false = Mockup (mặc định để test trước), true = Product (gọi AI thật)
+  // Biến bật tắt flow: true = Product (gọi AI thật), false = Mockup (dữ liệu mẫu)
   const [isProductFlow, setIsProductFlow] = useState<boolean>(() => {
-    return process.env.NEXT_PUBLIC_ENABLE_PRODUCT_FLOW === 'true';
+    return process.env.NEXT_PUBLIC_ENABLE_PRODUCT_FLOW !== 'false';
   });
 
   // Chọn Provider & Model
@@ -73,6 +75,14 @@ export default function PasteExtractPage() {
   const [selectedModel, setSelectedModel] = useState<string>(PROVIDER_CONFIGS.gemini.defaultModel);
   const [customApiKey, setCustomApiKey] = useState<string>('');
   const [showKeyAccordion, setShowKeyAccordion] = useState<boolean>(false);
+
+  // Khôi phục API Key từ localStorage
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('assumption_debt_api_key');
+      if (saved) setCustomApiKey(saved);
+    }
+  }, []);
 
   const { setProposedData, loadSeedData } = useGraphStore();
 
@@ -82,8 +92,12 @@ export default function PasteExtractPage() {
     setErrorMsg(null);
   };
 
-  const handleLoadSample = () => {
-    setDocText(SAMPLE_PRD);
+  const handleLoadPreset = (id: string) => {
+    setSelectedDocId(id);
+    const found = SAMPLE_DOCS.find((d) => d.id === id);
+    if (found) {
+      setDocText(found.content);
+    }
     setErrorMsg(null);
   };
 
@@ -98,6 +112,10 @@ export default function PasteExtractPage() {
     setErrorMsg(null);
 
     try {
+      if (customApiKey.trim()) {
+        localStorage.setItem('assumption_debt_api_key', customApiKey.trim());
+      }
+
       const res = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,7 +141,7 @@ export default function PasteExtractPage() {
 
       const projectTitle = !isProductFlow
         ? 'Instant Merchant Advance (Mockup)'
-        : extractProjectTitle(docText);
+        : extractProjectTitleFromDoc(docText);
 
       setProposedData(
         json.data.assumptions,
@@ -342,13 +360,23 @@ export default function PasteExtractPage() {
               <span className="flex items-center gap-1.5 font-medium">
                 <FileText className="w-4 h-4 text-slate-400" /> Văn bản tài liệu đầu vào
               </span>
-              <button
-                type="button"
-                onClick={handleLoadSample}
-                className="text-amber-600 dark:text-amber-400 font-semibold hover:underline"
-              >
-                + Tải lại nội dung PRD mẫu
-              </button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-slate-400">Nạp nhanh mẫu:</span>
+                {SAMPLE_DOCS.map((doc) => (
+                  <button
+                    key={doc.id}
+                    type="button"
+                    onClick={() => handleLoadPreset(doc.id)}
+                    className={`text-[11px] px-2 py-0.5 rounded font-semibold transition ${
+                      selectedDocId === doc.id
+                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {doc.id === 'bookspa' ? 'BookSpa v2.3' : doc.id === 'merchant-advance' ? 'Merchant Advance' : 'Redis ADR'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <textarea

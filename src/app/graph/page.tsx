@@ -36,11 +36,19 @@ import {
   Redo2,
   AlertCircle,
   X,
-  Layers
+  Layers,
+  Check,
+  CheckCircle2,
+  Loader2,
+  Key,
+  BookOpen,
+  ArrowRight
 } from 'lucide-react';
 import Link from 'next/link';
 
 import { DocumentNodeComponent } from '@/components/DocumentNode';
+import { SAMPLE_DOCS, extractProjectTitleFromDoc } from '@/lib/sampleDocs';
+import { LLMProvider, PROVIDER_CONFIGS } from '@/lib/llm/types';
 
 const nodeTypes = {
   document: DocumentNodeComponent,
@@ -61,6 +69,7 @@ export default function GraphPage() {
     cascade,
     proposedAssumptions,
     proposedProjectName,
+    setProposedData,
     commitReviewToGraph,
     addManualNode,
     connectNodes,
@@ -82,6 +91,99 @@ export default function GraphPage() {
   const [addImportance, setAddImportance] = useState(3);
   const [addEffortWeeks, setAddEffortWeeks] = useState(1);
   const [addOwner, setAddOwner] = useState('');
+
+  // PRD Extraction Modal State
+  const [isExtractModalOpen, setIsExtractModalOpen] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('bookspa');
+  const [extractDocText, setExtractDocText] = useState<string>(SAMPLE_DOCS[0]?.content || '');
+  const [extractUseAi, setExtractUseAi] = useState<boolean>(true);
+  const [extractProvider, setExtractProvider] = useState<LLMProvider>('gemini');
+  const [extractModel, setExtractModel] = useState<string>(PROVIDER_CONFIGS.gemini.defaultModel);
+  const [extractApiKey, setExtractApiKey] = useState<string>('');
+  const [isExtracting, setIsExtracting] = useState<boolean>(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractSuccess, setExtractSuccess] = useState<string | null>(null);
+
+  // Auto-restore API key from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedKey = localStorage.getItem('assumption_debt_api_key');
+      if (savedKey) {
+        setExtractApiKey(savedKey);
+      }
+    }
+  }, []);
+
+  const handleSelectPreset = (docId: string) => {
+    setSelectedPresetId(docId);
+    const found = SAMPLE_DOCS.find((d) => d.id === docId);
+    if (found) {
+      setExtractDocText(found.content);
+    }
+  };
+
+  const handleRunExtract = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!extractDocText.trim()) {
+      setExtractError('Vui lòng nhập nội dung tài liệu để phân tích.');
+      return;
+    }
+
+    setIsExtracting(true);
+    setExtractError(null);
+    setExtractSuccess(null);
+
+    try {
+      if (extractApiKey.trim()) {
+        localStorage.setItem('assumption_debt_api_key', extractApiKey.trim());
+      }
+
+      const res = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentText: extractDocText,
+          useProductFlow: extractUseAi,
+          provider: extractProvider,
+          model: extractModel,
+          apiKey: extractApiKey.trim() || undefined
+        })
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || 'Trích xuất thất bại');
+      }
+
+      if (!json.data || !json.data.assumptions || json.data.assumptions.length === 0) {
+        throw new Error('Không tìm thấy giả định nào phù hợp hoặc trích dẫn không khớp với văn bản.');
+      }
+
+      const docTitle = extractUseAi
+        ? extractProjectTitleFromDoc(extractDocText)
+        : 'Instant Merchant Advance (Mockup)';
+
+      // Commit directly to graph
+      setProposedData(
+        json.data.assumptions,
+        json.data.decisions || [],
+        json.data.links || [],
+        docTitle
+      );
+      commitReviewToGraph(true);
+
+      setExtractSuccess(`Đã tạo thành công đồ thị mới cho "${docTitle}"!`);
+      setTimeout(() => {
+        setIsExtractModalOpen(false);
+        setExtractSuccess(null);
+      }, 1000);
+    } catch (err: unknown) {
+      console.error(err);
+      setExtractError(err instanceof Error ? err.message : 'Lỗi khi trích xuất');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
 
   // Enhanced Graph View Options: Root PRD node & Compact Mode
   const [includeProjectRoot, setIncludeProjectRoot] = useState(true);
@@ -387,13 +489,14 @@ export default function GraphPage() {
             <span>Reset Demo</span>
           </button>
 
-          <Link
-            href="/"
-            className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 hover:opacity-90 transition"
+          <button
+            onClick={() => setIsExtractModalOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 transition shadow-sm"
+            title="Dán văn bản PRD/ADR để AI trích xuất giả định, quyết định, công việc và vẽ lại đồ thị"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Dán PRD mới</span>
-          </Link>
+            <Sparkles className="w-3.5 h-3.5 fill-current" />
+            <span>+ Dán PRD mới (AI)</span>
+          </button>
         </div>
       </header>
 
@@ -424,12 +527,19 @@ export default function GraphPage() {
         </div>
       )}
 
-      {/* Main Workspace: React Flow Canvas + Debt Panel */}
+      {/* Main Workspace: Left Sidebar (Tab Bar / DebtPanel) + Right Canvas */}
       <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
         {/* Cascade Banner Notification */}
         <CascadeBanner />
 
-        {/* Left Side: React Flow Canvas */}
+        {/* Left Side: Risk & Debt Panel (Tab Bar) */}
+        <DebtPanel
+          onOpenExtractModal={() => setIsExtractModalOpen(true)}
+          onOpenAddModal={() => setIsAddModalOpen(true)}
+          onDemoRefuteA1={handleDemoRefuteA1}
+        />
+
+        {/* Right Side: React Flow Canvas */}
         <div className="flex-1 h-full w-full relative">
           {/* Toast Alert for Connection Error */}
           {connectError && (
@@ -504,8 +614,6 @@ export default function GraphPage() {
           </div>
         </div>
 
-        {/* Right Side: Risk & Debt Panel */}
-        <DebtPanel />
       </div>
 
       {/* Modal: Thêm Nút Thủ Công (Phase 7) */}
@@ -649,6 +757,244 @@ export default function GraphPage() {
                 >
                   Tạo Nút
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Dán PRD & Tạo đồ thị AI mới */}
+      {isExtractModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl animate-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Dán PRD & Tạo Đồ thị Bằng AI
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    AI tự động trích xuất Giả định, Quyết định, Công việc và dựng Cây Phụ thuộc
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsExtractModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Error or Success notification */}
+            {extractError && (
+              <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 flex-shrink-0">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{extractError}</span>
+              </div>
+            )}
+            {extractSuccess && (
+              <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 flex-shrink-0">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>{extractSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRunExtract} className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {/* Preset Document Buttons */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Chọn nhanh tài liệu mẫu hoặc tự dán:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {SAMPLE_DOCS.map((doc) => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() => handleSelectPreset(doc.id)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition flex items-center gap-1.5 ${
+                        selectedPresetId === doc.id
+                          ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold'
+                          : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      <span>{doc.title.split(':')[1]?.split('(')[0]?.trim() || doc.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Textarea for document */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Nội dung văn bản (Markdown / Text):
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {extractDocText.length} ký tự
+                  </span>
+                </div>
+                <textarea
+                  rows={7}
+                  value={extractDocText}
+                  onChange={(e) => {
+                    setExtractDocText(e.target.value);
+                    setSelectedPresetId('');
+                  }}
+                  placeholder="Dán nội dung PRD, ADR, Spec dự án vào đây..."
+                  className="w-full text-xs font-mono p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"
+                  required
+                />
+              </div>
+
+              {/* Mode Selection: AI vs Mockup */}
+              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setExtractUseAi(true)}
+                  className={`p-3 rounded-xl border text-left transition ${
+                    extractUseAi
+                      ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      ✨ Chế độ AI Thật
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    Gọi Gemini / Claude / GPT phân tích trực tiếp văn bản, tính toán rủi ro và dựng toàn bộ đồ thị.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setExtractUseAi(false)}
+                  className={`p-3 rounded-xl border text-left transition ${
+                    !extractUseAi
+                      ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Layers className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      📦 Mockup Offline
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 leading-relaxed">
+                    Dùng dữ liệu mẫu Instant Merchant Advance có sẵn để test nhanh đồ thị mà không cần API key.
+                  </p>
+                </button>
+              </div>
+
+              {/* AI Provider & API Key Configuration if AI Mode */}
+              {extractUseAi && (
+                <div className="space-y-3 p-3.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Nhà cung cấp LLM:
+                      </label>
+                      <select
+                        value={extractProvider}
+                        onChange={(e) => {
+                          const p = e.target.value as LLMProvider;
+                          setExtractProvider(p);
+                          setExtractModel(PROVIDER_CONFIGS[p].defaultModel);
+                        }}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                      >
+                        <option value="gemini">Google Gemini (Khuyên dùng: 2.5 Flash)</option>
+                        <option value="anthropic">Anthropic Claude (3.5 Sonnet)</option>
+                        <option value="openai">OpenAI (GPT-4o)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Mô hình:
+                      </label>
+                      <select
+                        value={extractModel}
+                        onChange={(e) => setExtractModel(e.target.value)}
+                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                      >
+                        {PROVIDER_CONFIGS[extractProvider].availableModels.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Key className="w-3.5 h-3.5 text-amber-500" />
+                        <span>API Key ({PROVIDER_CONFIGS[extractProvider].name}):</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        (Tự động lưu vào trình duyệt của bạn)
+                      </span>
+                    </label>
+                    <input
+                      type="password"
+                      value={extractApiKey}
+                      onChange={(e) => setExtractApiKey(e.target.value)}
+                      placeholder={`Nhập ${PROVIDER_CONFIGS[extractProvider].name} API Key... (hoặc để trống nếu đã cấu hình trong .env.local)`}
+                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+                <Link
+                  href="/review"
+                  onClick={() => setIsExtractModalOpen(false)}
+                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1"
+                >
+                  <span>Chuyển sang Hòm thư duyệt chi tiết</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsExtractModalOpen(false)}
+                    disabled={isExtracting}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+                  >
+                    Hủy
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isExtracting}
+                    className="px-5 py-2.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded-xl transition shadow flex items-center gap-2"
+                  >
+                    {isExtracting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>AI Đang Phân Tích & Dựng Cây...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 fill-current" />
+                        <span>Tạo Đồ Thị Ngay</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

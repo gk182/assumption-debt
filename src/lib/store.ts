@@ -404,6 +404,8 @@ export const useGraphStore = create<GraphStore>()(
 
           const realId = `A${assumptionIndex++}`;
           idMap[pa.tempId] = realId;
+          idMap[pa.tempId.toLowerCase()] = realId;
+          idMap[pa.tempId.toUpperCase()] = realId;
 
           newNodes.push({
             id: realId,
@@ -428,6 +430,8 @@ export const useGraphStore = create<GraphStore>()(
           const isTask = pd.kind === 'task';
           const realId = isTask ? `T${taskIndex++}` : `D${decisionIndex++}`;
           idMap[pd.tempId] = realId;
+          idMap[pd.tempId.toLowerCase()] = realId;
+          idMap[pd.tempId.toUpperCase()] = realId;
 
           if (isTask) {
             newNodes.push({
@@ -452,17 +456,62 @@ export const useGraphStore = create<GraphStore>()(
 
         // 3. Convert links
         const newEdges: GraphEdge[] = [];
+        const seenEdges = new Set<string>();
+
         for (const pl of proposedLinks) {
-          const fromReal = idMap[pl.from];
-          const toReal = idMap[pl.to];
-          if (fromReal && toReal) {
-            newEdges.push({
-              from: fromReal,
-              to: toReal,
-              relation: 'depends_on',
-              reason: pl.reason
-            });
+          const fromReal = idMap[pl.from] || (pl.from ? idMap[pl.from.toLowerCase()] : undefined);
+          const toReal = idMap[pl.to] || (pl.to ? idMap[pl.to.toLowerCase()] : undefined);
+          if (fromReal && toReal && fromReal !== toReal) {
+            const edgeKey = `${fromReal}->${toReal}`;
+            if (!seenEdges.has(edgeKey)) {
+              seenEdges.add(edgeKey);
+              newEdges.push({
+                from: fromReal,
+                to: toReal,
+                relation: 'depends_on',
+                reason: pl.reason
+              });
+            }
           }
+        }
+
+        // 4. Guarantee graph connectivity:
+        // Ensure every Decision is linked to at least one Assumption,
+        // and every Task is linked to at least one Decision.
+        const assumptionsList = newNodes.filter((n) => n.type === 'assumption');
+        const decisionsList = newNodes.filter((n) => n.type === 'decision');
+        const tasksList = newNodes.filter((n) => n.type === 'task');
+
+        if (assumptionsList.length > 0) {
+          decisionsList.forEach((d, idx) => {
+            const hasAssumptionLink = newEdges.some((e) => e.from === d.id);
+            if (!hasAssumptionLink) {
+              // Connect to corresponding or round-robin assumption
+              const targetAssumption = assumptionsList[idx % assumptionsList.length];
+              newEdges.push({
+                from: d.id,
+                to: targetAssumption.id,
+                relation: 'depends_on',
+                reason: 'Quyết định phụ thuộc vào giả định nền tảng'
+              });
+            }
+          });
+        }
+
+        if (decisionsList.length > 0) {
+          tasksList.forEach((t, idx) => {
+            const hasDecisionLink = newEdges.some((e) => e.from === t.id);
+            if (!hasDecisionLink) {
+              // Connect to corresponding or round-robin decision
+              const targetDecision = decisionsList[idx % decisionsList.length];
+              newEdges.push({
+                from: t.id,
+                to: targetDecision.id,
+                relation: 'depends_on',
+                reason: 'Hạng mục triển khai quyết định này'
+              });
+            }
+          });
         }
 
         const finalProject = replace && proposedProjectName ? proposedProjectName : existingProject;
