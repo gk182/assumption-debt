@@ -93,32 +93,58 @@ Rules:
 
 export async function POST(req: NextRequest) {
   try {
-    const { documentText, demo = false } = await req.json();
+    const body = await req.json();
+    const { documentText, useProductFlow } = body;
 
-    if (!documentText || typeof documentText !== 'string' || !documentText.trim()) {
-      return NextResponse.json({ error: 'Document text is required' }, { status: 400 });
+    // Check toggle:
+    // 1. Explicit request flag `useProductFlow` takes precedence if specified
+    // 2. Otherwise check env variable `ENABLE_PRODUCT_FLOW` (or `NEXT_PUBLIC_ENABLE_PRODUCT_FLOW`)
+    const enableProduct = typeof useProductFlow === 'boolean'
+      ? useProductFlow
+      : (process.env.ENABLE_PRODUCT_FLOW === 'true' || process.env.NEXT_PUBLIC_ENABLE_PRODUCT_FLOW === 'true');
+
+    // === CHẾ ĐỘ 1: MOCKUP FLOW (Default khi tắt, chạy file mockup để test trước) ===
+    if (!enableProduct) {
+      const cachedPath = path.join(process.cwd(), 'data', 'demo', 'extraction-cached.json');
+      if (!fs.existsSync(cachedPath)) {
+        return NextResponse.json(
+          { error: 'Không tìm thấy file mockup data/demo/extraction-cached.json' },
+          { status: 500 }
+        );
+      }
+
+      const raw = fs.readFileSync(cachedPath, 'utf-8');
+      const mockData: ExtractionOutput = JSON.parse(raw);
+
+      // Trả về toàn bộ dữ liệu mockup mẫu để người dùng kiểm thử giao diện trơn tru
+      return NextResponse.json({
+        mode: 'mockup',
+        message: 'Đang chạy chế độ Mockup (dữ liệu mẫu có sẵn để test nhanh offline).',
+        data: mockData,
+        hallucinationsDropped: 0
+      });
     }
 
-    const isDemo = demo || process.env.DEMO_MODE === '1' || !process.env.ANTHROPIC_API_KEY;
-
-    // In demo mode or when offline, serve the cached extraction
-    if (isDemo) {
-      const cachedPath = path.join(process.cwd(), 'data', 'demo', 'extraction-cached.json');
-      if (fs.existsSync(cachedPath)) {
-        const raw = fs.readFileSync(cachedPath, 'utf-8');
-        const parsed = JSON.parse(raw);
-        const { filtered, droppedCount } = filterHallucinations(parsed, documentText);
-        return NextResponse.json({
-          mode: 'demo_cache',
-          data: filtered,
-          hallucinationsDropped: droppedCount
-        });
-      }
+    // === CHẾ ĐỘ 2: PRODUCT FLOW (Khi bật, gọi AI thật từ Anthropic) ===
+    if (!documentText || typeof documentText !== 'string' || !documentText.trim()) {
+      return NextResponse.json(
+        { error: 'Vui lòng nhập nội dung tài liệu dự án để trích xuất.' },
+        { status: 400 }
+      );
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+    if (!apiKey || apiKey === 'mock-key-for-offline-demo' || apiKey.startsWith('your_')) {
+      return NextResponse.json(
+        {
+          error:
+            'Chế độ Product Flow (Live AI) yêu cầu ANTHROPIC_API_KEY hợp lệ trong file .env.local. Vui lòng cấu hình API key hoặc tắt công tắc sang "Chế độ Mockup" để tiếp tục test.'
+        },
+        { status: 400 }
+      );
+    }
 
+    const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
     const client = new Anthropic({ apiKey });
 
     // Helper to call Anthropic with tool use
@@ -149,7 +175,6 @@ export async function POST(req: NextRequest) {
     try {
       rawOutput = await callExtraction();
     } catch (firstErr) {
-      // Retry once if schema validation or call failed
       console.warn('First extraction attempt failed, retrying once...', firstErr);
       rawOutput = await callExtraction(
         '\n\n[Previous attempt failed to follow the tool schema strictly. Please ensure the tool is called with valid parameters.]'
@@ -163,7 +188,8 @@ export async function POST(req: NextRequest) {
     const { filtered, droppedCount } = filterHallucinations(validated, documentText);
 
     return NextResponse.json({
-      mode: 'live_llm',
+      mode: 'product_live',
+      message: 'Trích xuất thành công bằng AI thật.',
       data: filtered,
       hallucinationsDropped: droppedCount
     });

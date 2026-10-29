@@ -56,3 +56,4 @@ describe('Extraction Schema and Hallucination Guard', () => {
     expect(filtered.links.find((l) => l.to === 'a_fake')).toBeUndefined();
   });
 });
+

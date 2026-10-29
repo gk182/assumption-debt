@@ -14,3 +14,4 @@ Bảng ghi chép và đánh giá chất lượng trích xuất giả định qua
 |---|---|---|---|---|---|---|---|---|
 | 2026-10-29 | v1.0 (seed fixture) | claude-3-5-sonnet-20241022 | `prd-food-delivery.md` | 4 giả định | 100% | 100% (4/4) | 50% (2/4) | Bóc tách chính xác giả định phí ship 15k và quán tự nhập menu. 100% quote hợp lệ. |
 | 2026-10-29 | v1.0 (cached baseline) | Baseline Schema | `prd-food-delivery.md` | 4 giả định | 100% | 100% (4/4) | 50% (2/4) | Demo cache offline hoạt động tức thì, không phụ thuộc kết nối mạng. |
+

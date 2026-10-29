@@ -316,7 +316,11 @@ export const useGraphStore = create<GraphStore>()(
         project: state.project,
         nodes: state.nodes,
         edges: state.edges,
-        cascade: state.cascade
+        cascade: state.cascade,
+        proposedAssumptions: state.proposedAssumptions,
+        proposedDecisions: state.proposedDecisions,
+        proposedLinks: state.proposedLinks,
+        reviewDecisions: state.reviewDecisions
       })
     }
   )

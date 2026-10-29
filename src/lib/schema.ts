@@ -57,15 +57,29 @@ export type ExtractedLink = z.infer<typeof ExtractedLinkSchema>;
 export type ExtractionOutput = z.infer<typeof ExtractionOutputSchema>;
 
 /**
- * Normalizes text by collapsing whitespace to ensure robust substring search
+ * Removes Vietnamese diacritics / tones for robust cross-variant substring search
  */
-function normalizeForSearch(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, ' ').trim();
+export function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+/**
+ * Normalizes text by removing diacritics, punctuation, and collapsing whitespace
+ */
+export function normalizeForSearch(text: string): string {
+  return removeVietnameseTones(text.toLowerCase())
+    .replace(/[^a-z0-9]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
  * Hallucination Guard: Validates that each extracted assumption's quote is an exact
- * (or whitespace-normalized) substring of the original document.
+ * (or whitespace/tone-normalized) substring of the original document.
  * Automatically drops hallucinations and cleans up dangling links.
  */
 export function filterHallucinations(
@@ -73,6 +87,7 @@ export function filterHallucinations(
   sourceDocument: string
 ): { filtered: ExtractionOutput; droppedCount: number } {
   const normDoc = normalizeForSearch(sourceDocument);
+  const rawDoc = sourceDocument.trim();
   const validAssumptions: ExtractedAssumption[] = [];
   let droppedCount = 0;
 
@@ -84,7 +99,11 @@ export function filterHallucinations(
     }
 
     const normQuote = normalizeForSearch(quote);
-    if (sourceDocument.includes(quote.trim()) || normDoc.includes(normQuote)) {
+    if (
+      rawDoc.includes(quote.trim()) ||
+      normDoc.includes(normQuote) ||
+      normDoc.includes(removeVietnameseTones(quote.toLowerCase()).trim())
+    ) {
       validAssumptions.push(a);
     } else {
       droppedCount++;

@@ -125,3 +125,4 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
 });
 
 AssumptionNodeComponent.displayName = 'AssumptionNodeComponent';
+

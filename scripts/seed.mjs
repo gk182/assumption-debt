@@ -13,3 +13,4 @@ try {
   console.error('❌ Failed to seed graph:', err);
   process.exit(1);
 }
+

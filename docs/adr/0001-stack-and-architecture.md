@@ -30,3 +30,4 @@ Dự án cần xây dựng công cụ trích xuất giả định từ tài li�
 ## Consequences
 - Hệ thống dễ đóng gói, chạy được offline hoàn toàn chỉ với `npm run dev`.
 - Logic đồ thị có thể tái sử dụng ở bất cứ đâu (client, server, worker script).
+

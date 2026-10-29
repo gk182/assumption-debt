@@ -69,3 +69,4 @@ export const TaskNodeComponent = memo(({ id, data, selected }: NodeProps) => {
 });
 
 TaskNodeComponent.displayName = 'TaskNodeComponent';
+

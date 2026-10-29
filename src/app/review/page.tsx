@@ -23,9 +23,31 @@ export default function ReviewInboxPage() {
     proposedDecisions,
     proposedLinks,
     reviewDecisions,
+    setProposedData,
     setReviewDecision,
     commitReviewToGraph
   } = useGraphStore();
+
+  const [isLoadingSample, setIsLoadingSample] = useState(false);
+
+  const handleLoadMockupSample = async () => {
+    setIsLoadingSample(true);
+    try {
+      const res = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentText: 'sample', useProductFlow: false })
+      });
+      const json = await res.json();
+      if (json.data) {
+        setProposedData(json.data.assumptions, json.data.decisions || [], json.data.links || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingSample(false);
+    }
+  };
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
@@ -95,19 +117,33 @@ export default function ReviewInboxPage() {
   if (proposedAssumptions.length === 0) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-        <Inbox className="w-12 h-12 text-slate-400 mb-3" />
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-4 shadow-sm">
+          <Inbox className="w-8 h-8" />
+        </div>
         <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">
           Chưa có giả định nào trong hòm thư duyệt
         </h2>
-        <p className="text-xs text-slate-500 max-w-md mt-1 mb-6">
-          Hãy dán tài liệu tại màn hình chính để hệ thống tự động trích xuất các giả định ngầm.
+        <p className="text-xs text-slate-500 max-w-md mt-1.5 mb-6 leading-relaxed">
+          Bạn có thể quay lại trang chủ để dán tài liệu mới, hoặc bấm nút bên dưới để nạp ngay bộ kết quả giả định mẫu (Mockup) để kiểm thử luồng duyệt.
         </p>
-        <Link
-          href="/"
-          className="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs"
-        >
-          Quay lại màn Dán tài liệu
-        </Link>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleLoadMockupSample}
+            disabled={isLoadingSample}
+            className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-md transition flex items-center gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>{isLoadingSample ? 'Đang nạp...' : 'Nạp dữ liệu giả định mẫu (Mockup)'}</span>
+          </button>
+
+          <Link
+            href="/"
+            className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition"
+          >
+            Quay lại màn Dán tài liệu
+          </Link>
+        </div>
       </div>
     );
   }
@@ -326,3 +362,4 @@ export default function ReviewInboxPage() {
     </div>
   );
 }
+
