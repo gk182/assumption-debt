@@ -25,3 +25,4 @@ export async function extractWithMultiLLM(options: LLMExtractOptions): Promise<E
   const adapter = getLLMAdapter(provider);
   return adapter.extract(options);
 }
+

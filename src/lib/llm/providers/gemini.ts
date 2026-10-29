@@ -23,7 +23,7 @@ export class GeminiAdapter implements LLMAdapter {
       throw new Error('Chưa cấu hình GEMINI_API_KEY. Vui lòng cung cấp Gemini API Key trong .env.local hoặc trên giao diện.');
     }
 
-    const modelName = options.model || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    const modelName = options.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const genAI = new GoogleGenerativeAI(apiKey);
 
     const model = genAI.getGenerativeModel({
@@ -58,3 +58,4 @@ ${options.documentText}
     }
   }
 }
+

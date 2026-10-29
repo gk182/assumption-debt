@@ -43,6 +43,20 @@ Khong trien khai mua bao hiem tin dung Credit Insurance trong giai doan v1 de ba
 Tu dong khau tru tien no goc tu cac don hang phat sinh tiep theo. Nguoi ban se tiep tuc duy tri gian hang va phat sinh don hang deu dan de hoan tra khoan ung.
 Sprint 4: Module tu dong thu hoi no goi dau tu don hang phat sinh tiep theo.`;
 
+function extractProjectTitle(docText: string): string {
+  const lines = docText.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('# ')) {
+      return trimmed.replace(/^#\s*(PRD:\s*)?/, '').trim();
+    }
+    if (trimmed.startsWith('PRD:') || trimmed.startsWith('Dự án:') || trimmed.startsWith('Project:')) {
+      return trimmed.replace(/^(PRD:|Dự án:|Project:)\s*/, '').trim();
+    }
+  }
+  return 'Dự án trích xuất mới';
+}
+
 export default function PasteExtractPage() {
   const router = useRouter();
   const [docText, setDocText] = useState(SAMPLE_PRD);
@@ -107,7 +121,16 @@ export default function PasteExtractPage() {
         );
       }
 
-      setProposedData(json.data.assumptions, json.data.decisions || [], json.data.links || []);
+      const projectTitle = !isProductFlow
+        ? 'Instant Merchant Advance (Mockup)'
+        : extractProjectTitle(docText);
+
+      setProposedData(
+        json.data.assumptions,
+        json.data.decisions || [],
+        json.data.links || [],
+        projectTitle
+      );
       router.push('/review');
     } catch (err: unknown) {
       console.error(err);

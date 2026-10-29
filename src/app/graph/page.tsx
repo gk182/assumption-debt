@@ -49,7 +49,10 @@ export default function GraphPage() {
     resetToInitial,
     refuteAssumption,
     selectedNodeId,
-    cascade
+    cascade,
+    proposedAssumptions,
+    proposedProjectName,
+    commitReviewToGraph
   } = useGraphStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -131,12 +134,20 @@ export default function GraphPage() {
     selectNode(null);
   }, [selectNode]);
 
-  // Demo shortcut: Refute A1 with one click
+  // Demo shortcut: Refute first available assumption with one click
   const handleDemoRefuteA1 = () => {
-    refuteAssumption(
-      'A1',
-      'Khảo sát đối tác SMB: 42% nhà bán phản ứng tiêu cực với mức phí 1.2%, dọa chuyển sang đơn vị tài chính khác'
+    const unverifiedAssumption = storeNodes.find(
+      (n): n is import('@/lib/types').AssumptionNode => n.type === 'assumption' && n.status === 'unverified'
     );
+    const target =
+      unverifiedAssumption ||
+      storeNodes.find((n): n is import('@/lib/types').AssumptionNode => n.type === 'assumption');
+    if (target) {
+      refuteAssumption(
+        target.id,
+        target.whyItMatters || 'Bác bỏ giả định qua phản hồi thực tế từ thị trường'
+      );
+    }
   };
 
   return (
@@ -168,10 +179,10 @@ export default function GraphPage() {
           <button
             onClick={handleDemoRefuteA1}
             className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition"
-            title="Thực hiện nhanh bước demo: Bác bỏ giả định A1 (Phí ship 15k) để kích hoạt Cascade"
+            title="Thực hiện nhanh bước demo: Bác bỏ giả định đầu tiên để kích hoạt hiệu ứng sụp đổ dây chuyền (Cascade)"
           >
             <Zap className="w-3.5 h-3.5 fill-current" />
-            <span>Demo: Bác bỏ A1</span>
+            <span>Demo: Bác bỏ {storeNodes.find((n) => n.type === 'assumption')?.id || 'A1'}</span>
           </button>
 
           <button
@@ -192,6 +203,33 @@ export default function GraphPage() {
           </Link>
         </div>
       </header>
+
+      {/* Notice Banner if new proposed assumptions are waiting in Review Inbox */}
+      {proposedAssumptions.length > 0 && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-6 py-2 flex flex-wrap items-center justify-between gap-3 text-xs z-20 animate-in fade-in">
+          <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+            <Sparkles className="w-4 h-4 text-amber-500 animate-pulse flex-shrink-0" />
+            <span>
+              Bạn đang có <strong>{proposedAssumptions.length} giả định</strong> mới trích xuất
+              {proposedProjectName ? ` từ "${proposedProjectName}"` : ''} chưa được nạp vào đồ thị.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => commitReviewToGraph(true)}
+              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shadow-sm transition"
+            >
+              Nạp ngay vào Đồ thị (Thay thế cũ)
+            </button>
+            <Link
+              href="/review"
+              className="px-3 py-1 rounded-lg border border-amber-500/40 hover:bg-amber-500/20 text-amber-900 dark:text-amber-100 font-semibold transition"
+            >
+              Xem Hòm thư duyệt
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Main Workspace: React Flow Canvas + Debt Panel */}
       <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">

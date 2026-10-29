@@ -22,7 +22,9 @@ export default function ReviewInboxPage() {
     proposedAssumptions,
     proposedDecisions,
     proposedLinks,
+    proposedProjectName,
     reviewDecisions,
+    nodes,
     setProposedData,
     setReviewDecision,
     commitReviewToGraph
@@ -40,7 +42,12 @@ export default function ReviewInboxPage() {
       });
       const json = await res.json();
       if (json.data) {
-        setProposedData(json.data.assumptions, json.data.decisions || [], json.data.links || []);
+        setProposedData(
+          json.data.assumptions,
+          json.data.decisions || [],
+          json.data.links || [],
+          'Instant Merchant Advance (Mockup)'
+        );
       }
     } catch (err) {
       console.error(err);
@@ -109,8 +116,8 @@ export default function ReviewInboxPage() {
     }
   };
 
-  const handleFinalize = () => {
-    commitReviewToGraph();
+  const handleFinalize = (replace: boolean = true) => {
+    commitReviewToGraph(replace);
     router.push('/graph');
   };
 
@@ -127,7 +134,7 @@ export default function ReviewInboxPage() {
           Bạn có thể quay lại trang chủ để dán tài liệu mới, hoặc bấm nút bên dưới để nạp ngay bộ kết quả giả định mẫu (Mockup) để kiểm thử luồng duyệt.
         </p>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={handleLoadMockupSample}
             disabled={isLoadingSample}
@@ -136,6 +143,15 @@ export default function ReviewInboxPage() {
             <Sparkles className="w-4 h-4" />
             <span>{isLoadingSample ? 'Đang nạp...' : 'Nạp dữ liệu giả định mẫu (Mockup)'}</span>
           </button>
+
+          {nodes.length > 0 && (
+            <Link
+              href="/graph"
+              className="px-4 py-2.5 rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold text-xs transition"
+            >
+              Mở Đồ thị hiện tại ({nodes.length} nodes)
+            </Link>
+          )}
 
           <Link
             href="/"
@@ -165,12 +181,16 @@ export default function ReviewInboxPage() {
               Hòm thư duyệt giả định (Review Inbox)
             </h1>
             <p className="text-[11px] text-slate-500">
-              Con người quyết định: Xác nhận (Enter), Bác bỏ (Backspace), Sửa (E)
+              {proposedProjectName ? (
+                <>Dự án: <span className="text-amber-600 dark:text-amber-400 font-medium">{proposedProjectName}</span></>
+              ) : (
+                'Con người quyết định: Xác nhận (Enter), Bác bỏ (Backspace), Sửa (E)'
+              )}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleConfirmAll}
             className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
@@ -180,10 +200,19 @@ export default function ReviewInboxPage() {
           </button>
 
           <button
-            onClick={handleFinalize}
-            className="flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 shadow transition"
+            onClick={() => handleFinalize(false)}
+            className="hidden md:flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            title="Thêm các mục đã duyệt vào đồ thị hiện có mà không xóa đồ thị cũ"
           >
-            <span>Đưa vào Đồ thị ({confirmedCount})</span>
+            <span>Nối thêm vào đồ thị cũ</span>
+          </button>
+
+          <button
+            onClick={() => handleFinalize(true)}
+            className="flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 shadow transition"
+            title="Tạo mới toàn bộ đồ thị theo tài liệu vừa trích xuất"
+          >
+            <span>Tạo Đồ thị Mới ({confirmedCount})</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

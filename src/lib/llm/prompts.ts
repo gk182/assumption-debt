@@ -79,3 +79,4 @@ export const EXTRACTION_JSON_SCHEMA = {
   },
   required: ['assumptions', 'decisions', 'links']
 };
+

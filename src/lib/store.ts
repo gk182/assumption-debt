@@ -36,6 +36,7 @@ interface GraphStore {
   cascade: CascadeState | null;
 
   // Review Inbox (Temporary proposed items before confirmation)
+  proposedProjectName: string | null;
   proposedAssumptions: ExtractedAssumption[];
   proposedDecisions: ExtractedDecision[];
   proposedLinks: ExtractedLink[];
@@ -57,9 +58,14 @@ interface GraphStore {
   dismissCascade: () => void;
 
   // Review Inbox actions
-  setProposedData: (assumptions: ExtractedAssumption[], decisions: ExtractedDecision[], links: ExtractedLink[]) => void;
+  setProposedData: (
+    assumptions: ExtractedAssumption[],
+    decisions: ExtractedDecision[],
+    links: ExtractedLink[],
+    projectName?: string
+  ) => void;
   setReviewDecision: (tempId: string, action: 'confirm' | 'reject', text?: string, importance?: number) => void;
-  commitReviewToGraph: () => void;
+  commitReviewToGraph: (replace?: boolean) => void;
 }
 
 const initialSeedGraph: ProjectGraph = {
@@ -77,6 +83,7 @@ export const useGraphStore = create<GraphStore>()(
       selectedNodeId: null,
       cascade: null,
 
+      proposedProjectName: null,
       proposedAssumptions: [],
       proposedDecisions: [],
       proposedLinks: [],
@@ -117,6 +124,7 @@ export const useGraphStore = create<GraphStore>()(
           edges: JSON.parse(JSON.stringify(initialSeedGraph.edges)),
           selectedNodeId: null,
           cascade: null,
+          proposedProjectName: null,
           proposedAssumptions: [],
           proposedDecisions: [],
           proposedLinks: [],
@@ -191,12 +199,13 @@ export const useGraphStore = create<GraphStore>()(
         }));
       },
 
-      setProposedData: (assumptions, decisions, links) => {
+      setProposedData: (assumptions, decisions, links, projectName) => {
         const initialReviews: Record<string, { action: 'confirm' | 'reject' }> = {};
         for (const a of assumptions) {
           initialReviews[a.tempId] = { action: 'confirm' };
         }
         set({
+          proposedProjectName: projectName || null,
           proposedAssumptions: assumptions,
           proposedDecisions: decisions,
           proposedLinks: links,
@@ -213,21 +222,27 @@ export const useGraphStore = create<GraphStore>()(
         }));
       },
 
-      commitReviewToGraph: () => {
+      commitReviewToGraph: (replace = true) => {
         const {
           proposedAssumptions,
           proposedDecisions,
           proposedLinks,
+          proposedProjectName,
           reviewDecisions,
           nodes: existingNodes,
-          edges: existingEdges
+          edges: existingEdges,
+          project: existingProject
         } = get();
 
         const idMap: Record<string, string> = {};
         const newNodes: GraphNode[] = [];
 
+        // Determine starting indices
+        let assumptionIndex = replace ? 1 : existingNodes.filter((n) => n.type === 'assumption').length + 1;
+        let decisionIndex = replace ? 1 : existingNodes.filter((n) => n.type === 'decision').length + 1;
+        let taskIndex = replace ? 1 : existingNodes.filter((n) => n.type === 'task').length + 1;
+
         // 1. Convert confirmed assumptions
-        let assumptionIndex = existingNodes.filter((n) => n.type === 'assumption').length + 1;
         for (const pa of proposedAssumptions) {
           const decision = reviewDecisions[pa.tempId];
           if (decision?.action === 'reject') continue; // Dropped by human reviewer
@@ -254,9 +269,6 @@ export const useGraphStore = create<GraphStore>()(
         }
 
         // 2. Convert decisions and tasks
-        let decisionIndex = existingNodes.filter((n) => n.type === 'decision').length + 1;
-        let taskIndex = existingNodes.filter((n) => n.type === 'task').length + 1;
-
         for (const pd of proposedDecisions) {
           const isTask = pd.kind === 'task';
           const realId = isTask ? `T${taskIndex++}` : `D${decisionIndex++}`;
@@ -298,13 +310,18 @@ export const useGraphStore = create<GraphStore>()(
           }
         }
 
+        const finalProject = replace && proposedProjectName ? proposedProjectName : existingProject;
+
         // Merge or replace
         set({
-          nodes: [...existingNodes, ...newNodes],
-          edges: [...existingEdges, ...newEdges],
+          project: finalProject,
+          nodes: replace ? newNodes : [...existingNodes, ...newNodes],
+          edges: replace ? newEdges : [...existingEdges, ...newEdges],
+          cascade: null,
           proposedAssumptions: [],
           proposedDecisions: [],
           proposedLinks: [],
+          proposedProjectName: null,
           reviewDecisions: {},
           selectedNodeId: newNodes[0]?.id || null
         });
@@ -312,11 +329,32 @@ export const useGraphStore = create<GraphStore>()(
     }),
     {
       name: 'assumption-debt-store',
+      version: 2,
+      migrate: (persistedState: any, version: number) => {
+        // If older version or old Checkout project was cached, reset to fresh initial seed
+        if (
+          version < 2 ||
+          !persistedState ||
+          persistedState.project?.includes('Checkout') ||
+          persistedState.project?.includes('Rút gọn quy trình')
+        ) {
+          return {
+            ...persistedState,
+            project: initialSeedGraph.project,
+            nodes: initialSeedGraph.nodes,
+            edges: initialSeedGraph.edges,
+            cascade: null,
+            proposedProjectName: null
+          };
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         project: state.project,
         nodes: state.nodes,
         edges: state.edges,
         cascade: state.cascade,
+        proposedProjectName: state.proposedProjectName,
         proposedAssumptions: state.proposedAssumptions,
         proposedDecisions: state.proposedDecisions,
         proposedLinks: state.proposedLinks,
