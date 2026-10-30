@@ -5,6 +5,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useViewport,
   Background,
   MiniMap,
   useNodesState,
@@ -54,7 +55,8 @@ import {
   GitMerge,
   SlidersHorizontal,
   ChevronDown,
-  RefreshCw
+  RefreshCw,
+  Grid
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -73,6 +75,46 @@ const nodeTypes = {
   decision: DecisionNodeComponent,
   task: TaskNodeComponent
 };
+
+interface AdaptiveBackgroundProps {
+  variant?: BackgroundVariant;
+}
+
+/**
+ * AdaptiveBackground guarantees that dot size and spacing remain sharp,
+ * beautifully visible, and never vanish into a pitch-black canvas when zooming out.
+ */
+function AdaptiveBackground({ variant = BackgroundVariant.Dots }: AdaptiveBackgroundProps) {
+  const { zoom } = useViewport();
+
+  // Guard against invalid/zero zoom
+  const safeZoom = Math.max(zoom || 1, 0.15);
+
+  // 1. Maintain consistent on-screen dot size across all zoom levels
+  // In @xyflow/react: scaledSize = size * zoom; dot radius = scaledSize / 2
+  // When zoomed out (< 0.5), boost on-screen radius slightly so dots pop crisply against black canvas
+  const targetOnScreenRadius = safeZoom < 0.35 ? 1.4 : safeZoom < 0.65 ? 1.2 : 0.95;
+  const dynamicSize = Math.max(1.0, (targetOnScreenRadius * 2) / safeZoom);
+
+  // 2. Maintain comfortable on-screen dot spacing (~18px - 24px on physical screen)
+  // In @xyflow/react: scaledGap = gap * zoom => gap = onScreenSpacing / zoom
+  const targetOnScreenSpacing = safeZoom < 0.35 ? 18 : safeZoom < 0.65 ? 20 : 22;
+  const dynamicGap = Math.max(16, Math.round(targetOnScreenSpacing / safeZoom));
+
+  // 3. Adaptive contrast: when zoomed out, use brighter dot color
+  const isFarOut = safeZoom < 0.55;
+  const dotColor = isFarOut ? 'var(--flow-dot-color-far)' : 'var(--flow-dot-color)';
+
+  return (
+    <Background
+      variant={variant}
+      gap={dynamicGap}
+      size={dynamicSize}
+      color={dotColor}
+      className="transition-colors duration-200"
+    />
+  );
+}
 
 function GraphInner() {
   const {
@@ -143,6 +185,7 @@ function GraphInner() {
   const [isCompact, setIsCompact] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [layoutDirection, setLayoutDirection] = useState<'LR' | 'TB'>('LR');
+  const [bgVariant, setBgVariant] = useState<BackgroundVariant>(BackgroundVariant.Dots);
 
   // Phase 11: Smart Filter & Focus States
   const [showFilterBar, setShowFilterBar] = useState(false);
@@ -993,13 +1036,8 @@ function GraphInner() {
             maxZoom={2.0}
             proOptions={{ hideAttribution: true }}
           >
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={16}
-              size={1}
-              color="#a3a3a3"
-              className="opacity-25"
-            />
+            {/* Adaptive Dot Background that never disappears when zooming out */}
+            <AdaptiveBackground variant={bgVariant} />
 
             {/* Vercel Clean MiniMap */}
             {showMiniMap && (
@@ -1061,6 +1099,23 @@ function GraphInner() {
               title="Bật / Tắt Bản đồ thu nhỏ (MiniMap)"
             >
               <MapIcon className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => {
+                if (bgVariant === BackgroundVariant.Dots) setBgVariant(BackgroundVariant.Lines);
+                else if (bgVariant === BackgroundVariant.Lines) setBgVariant(BackgroundVariant.Cross);
+                else setBgVariant(BackgroundVariant.Dots);
+              }}
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 transition"
+              title={`Kiểu nền canvas: ${
+                bgVariant === BackgroundVariant.Dots
+                  ? 'Chấm (Dots)'
+                  : bgVariant === BackgroundVariant.Lines
+                  ? 'Lưới kẻ (Lines)'
+                  : 'Dấu cộng (Cross)'
+              }`}
+            >
+              <Grid className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -1353,7 +1408,7 @@ function GraphInner() {
                         : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300'
                     }`}
                   >
-                    <div className="text-xs">🔄 Tạo đồ thị mới (Thay thế)</div>
+                    <div className="text-xs">Tạo đồ thị mới (Thay thế)</div>
                     <div className="text-[10px] text-neutral-500">Xóa đồ thị hiện tại và tạo lại từ đầu</div>
                   </button>
                   <button
@@ -1365,7 +1420,7 @@ function GraphInner() {
                         : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300'
                     }`}
                   >
-                    <div className="text-xs">📚 Gộp thêm vào đồ thị (Nhiều tài liệu)</div>
+                    <div className="text-xs">Gộp thêm vào đồ thị (Nhiều tài liệu)</div>
                     <div className="text-[10px] text-neutral-500">Giữ nguyên đồ thị cũ và kết nối thêm tài liệu mới</div>
                   </button>
                 </div>

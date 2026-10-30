@@ -9,6 +9,8 @@
     --mute: #8f8f8f;
     --hairline: #ebebeb;
     --link: #0070f3;
+    --flow-dot-color: #a8a8a8;
+    --flow-dot-color-far: #707070;
   }
 
   .dark {
@@ -19,6 +21,8 @@
     --mute: #737373;
     --hairline: #262626;
     --link: #0070f3;
+    --flow-dot-color: #484848;
+    --flow-dot-color-far: #8e8e8e;
   }
 
   body {
