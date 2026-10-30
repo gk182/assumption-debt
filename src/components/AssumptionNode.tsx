@@ -4,7 +4,8 @@ import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { AssumptionNode as AssumptionNodeType } from '@/lib/types';
 import { useGraphStore } from '@/lib/store';
-import { AlertCircle, CheckCircle2, XCircle, ShieldAlert, Quote } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle, ShieldAlert, Quote, Clock } from 'lucide-react';
+import { isNodeOverdue } from '@/lib/history';
 
 interface CustomData {
   node: AssumptionNodeType;
@@ -19,6 +20,11 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
 
   const isSelected = selected || selectedNodeId === id;
   const isRefutedInCascade = cascade?.refutedId === id;
+  const [currentDate, setCurrentDate] = React.useState<Date | null>(null);
+  React.useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
+  const isOverdue = currentDate ? isNodeOverdue(node, currentDate) : false;
 
   const statusConfig = {
     unverified: {
@@ -86,13 +92,24 @@ export const AssumptionNodeComponent = memo(({ id, data, selected }: NodeProps) 
           <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
             {node.id}
           </span>
-          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate max-w-[100px]">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate max-w-[90px]">
             {node.category || 'Giả định'}
           </span>
         </div>
-        <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusConfig.badge}`}>
-          {statusConfig.icon}
-          <span>{statusConfig.label}</span>
+        <div className="flex items-center gap-1">
+          {isOverdue && (
+            <span
+              className="flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500 text-white animate-pulse"
+              title={`Quá hạn kiểm chứng: ${node.verifyBy}`}
+            >
+              <Clock className="w-2.5 h-2.5" />
+              <span>Quá hạn</span>
+            </span>
+          )}
+          <div className={`flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${statusConfig.badge}`}>
+            {statusConfig.icon}
+            <span>{statusConfig.label}</span>
+          </div>
         </div>
       </div>
 

@@ -23,6 +23,12 @@ import {
   generateVerificationTasks,
   generateReviewTasks
 } from './tasks';
+import {
+  recordStatusChange,
+  recordEvidence,
+  appendNodeHistory,
+  createHistoryEvent
+} from './history';
 
 export interface CascadeState {
   isActive: boolean;
@@ -95,6 +101,9 @@ interface GraphStore {
   ) => void;
   setReviewDecision: (tempId: string, action: 'confirm' | 'reject', text?: string, importance?: number) => void;
   commitReviewToGraph: (replace?: boolean) => void;
+
+  // Phase 9: History & Evidence
+  addEvidenceToNode: (id: string, evidence: string, note?: string) => void;
 
   // Phase 8: Task Generator
   tasks: GeneratedTask[];
@@ -170,6 +179,11 @@ export const useGraphStore = create<GraphStore>()(
         }
         const newId = `${prefix}${maxIndex + 1}`;
 
+        const createdEvent = createHistoryEvent('created', {
+          note: 'Nút được tạo thủ công',
+          author: 'Người dùng'
+        });
+
         let newNode: GraphNode;
         if (data.type === 'assumption') {
           newNode = {
@@ -182,7 +196,8 @@ export const useGraphStore = create<GraphStore>()(
             owner: data.owner || 'Chưa gán',
             category: (data.category as any) || 'other',
             whyItMatters: 'Giả định được thêm thủ công',
-            howToVerify: 'Xác thực qua khảo sát hoặc thử nghiệm thực tế'
+            howToVerify: 'Xác thực qua khảo sát hoặc thử nghiệm thực tế',
+            history: [createdEvent]
           };
         } else if (data.type === 'decision') {
           newNode = {
@@ -191,7 +206,8 @@ export const useGraphStore = create<GraphStore>()(
             text: data.text,
             status: 'active',
             effortWeeks: data.effortWeeks || 1,
-            owner: data.owner
+            owner: data.owner,
+            history: [createdEvent]
           };
         } else {
           newNode = {
@@ -200,7 +216,8 @@ export const useGraphStore = create<GraphStore>()(
             text: data.text,
             status: 'active',
             effortWeeks: data.effortWeeks || 1,
-            owner: data.owner
+            owner: data.owner,
+            history: [createdEvent]
           };
         }
 
@@ -303,10 +320,33 @@ export const useGraphStore = create<GraphStore>()(
 
       updateNode: (id, updates) => {
         const { nodes, edges, past } = get();
+        const targetNode = nodes.find((n) => n.id === id);
+        let finalUpdates: Partial<GraphNode> = updates;
+
+        if (targetNode) {
+          const hasContentChange =
+            (updates.text !== undefined && updates.text !== targetNode.text) ||
+            (updates.owner !== undefined && updates.owner !== targetNode.owner) ||
+            ('importance' in updates && (updates as any).importance !== (targetNode as any).importance) ||
+            ('verifyBy' in updates && (updates as any).verifyBy !== (targetNode as any).verifyBy);
+
+          if (hasContentChange) {
+            const editEvent = createHistoryEvent('edited', {
+              note: 'Cập nhật thông tin node',
+              author: 'Người dùng'
+            });
+            const existingHistory = targetNode.history ? [...targetNode.history] : [];
+            finalUpdates = {
+              ...updates,
+              history: [...existingHistory, editEvent]
+            };
+          }
+        }
+
         set({
           past: [...past.slice(-24), { nodes, edges }],
           future: [],
-          nodes: nodes.map((n) => (n.id === id ? ({ ...n, ...updates } as GraphNode) : n))
+          nodes: nodes.map((n) => (n.id === id ? ({ ...n, ...finalUpdates } as GraphNode) : n))
         });
       },
 
@@ -321,11 +361,10 @@ export const useGraphStore = create<GraphStore>()(
 
         const updatedNodes = nodes.map((n) =>
           n.id === id
-            ? ({
-                ...n,
-                status: 'refuted' as const,
-                refuteReason: reason || 'Bác bỏ bởi kiểm chứng thực tế'
-              } as AssumptionNode)
+            ? recordStatusChange(n, 'refuted', {
+                note: reason || 'Bác bỏ bởi kiểm chứng thực tế',
+                author: 'Người dùng'
+              })
             : n
         );
 
@@ -356,7 +395,12 @@ export const useGraphStore = create<GraphStore>()(
       validateAssumption: (id) => {
         const { nodes, tasks } = get();
         const updatedNodes = nodes.map((n) =>
-          n.id === id ? ({ ...n, status: 'validated' as const, refuteReason: undefined } as AssumptionNode) : n
+          n.id === id
+            ? recordStatusChange(n, 'validated', {
+                note: 'Đã xác thực thành công qua bằng chứng thực tế',
+                author: 'Người dùng'
+              })
+            : n
         );
         const updatedTasks = (tasks || []).map((t) =>
           t.targetNodeId === id && t.type === 'verification'
@@ -373,12 +417,25 @@ export const useGraphStore = create<GraphStore>()(
       resetAssumptionStatus: (id) => {
         const { nodes } = get();
         const updatedNodes = nodes.map((n) =>
-          n.id === id ? ({ ...n, status: 'unverified' as const, refuteReason: undefined } as AssumptionNode) : n
+          n.id === id
+            ? recordStatusChange(n, 'unverified', {
+                note: 'Đặt lại trạng thái thành Chưa kiểm chứng',
+                author: 'Người dùng'
+              })
+            : n
         );
         set((state) => ({
           nodes: updatedNodes,
           cascade: state.cascade?.refutedId === id ? null : state.cascade
         }));
+      },
+
+      addEvidenceToNode: (id, evidence, note) => {
+        const { nodes } = get();
+        const updatedNodes = nodes.map((n) =>
+          n.id === id ? recordEvidence(n, evidence, note, 'Người dùng') : n
+        );
+        set({ nodes: updatedNodes });
       },
 
       dismissCascade: () => {
@@ -387,7 +444,7 @@ export const useGraphStore = create<GraphStore>()(
         }));
       },
 
-      // Phase 8: Task Generator Actions
+  // Phase 8: Task Generator Actions
       generateTasks: (topN = 3) => {
         const { nodes, edges, tasks } = get();
         const newVerifications = generateVerificationTasks(nodes, edges, topN);

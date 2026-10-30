@@ -31,13 +31,17 @@ import {
   User,
   ExternalLink,
   Check,
-  RefreshCw
+  RefreshCw,
+  Link as LinkIcon,
+  History as HistoryIcon,
+  Bookmark
 } from 'lucide-react';
 import {
   exportTasksToMarkdown,
   exportTasksToCSV,
   GeneratedTask
 } from '@/lib/tasks';
+import { getFormattedHistory, isNodeOverdue } from '@/lib/history';
 
 interface DebtPanelProps {
   onOpenExtractModal?: () => void;
@@ -68,7 +72,8 @@ export function DebtPanel({
     approveTask,
     rejectTask,
     updateTask,
-    approveAllTasks
+    approveAllTasks,
+    addEvidenceToNode
   } = useGraphStore();
 
   const [activeTab, setActiveTab] = useState<'risk' | 'tasks' | 'node' | 'actions'>('risk');
@@ -78,6 +83,11 @@ export function DebtPanel({
   const [refuteReason, setRefuteReason] = useState('');
   const [showRefuteInput, setShowRefuteInput] = useState(false);
 
+  // Evidence input state
+  const [evidenceText, setEvidenceText] = useState('');
+  const [evidenceNote, setEvidenceNote] = useState('');
+  const [showEvidenceForm, setShowEvidenceForm] = useState(false);
+
   // Inline editing state for nodes
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState('');
@@ -86,7 +96,12 @@ export function DebtPanel({
   const [draftEffortWeeks, setDraftEffortWeeks] = useState(1);
   const [draftVerifyBy, setDraftVerifyBy] = useState('');
 
-  const metrics = getMetrics();
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
+
+  const metrics = getMetrics(currentDate || undefined);
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const downstreamResult = getDownstreamOfSelected();
 
@@ -155,6 +170,15 @@ export function DebtPanel({
     setShowRefuteInput(false);
     setRefuteReason('');
     setActiveTab('tasks'); // Switch to tasks tab to see newly generated review tasks!
+  };
+
+  const handleAddEvidence = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedNodeId || !evidenceText.trim()) return;
+    addEvidenceToNode(selectedNodeId, evidenceText.trim(), evidenceNote.trim() || undefined);
+    setEvidenceText('');
+    setEvidenceNote('');
+    setShowEvidenceForm(false);
   };
 
   const handleCopyMarkdown = () => {
@@ -301,11 +325,22 @@ export function DebtPanel({
             <span className="text-[10px] text-slate-400">Điểm cao xếp trên</span>
           </div>
 
+          {/* Overdue alert banner if any unverified assumptions are overdue */}
+          {metrics.overdueCount > 0 && (
+            <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-[11px] text-rose-800 dark:text-rose-200 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-rose-500 flex-shrink-0 animate-pulse" />
+              <span>
+                <strong>{metrics.overdueCount} giả định đã quá hạn</strong> kiểm chứng. Cần ưu tiên xác thực ngay!
+              </span>
+            </div>
+          )}
+
           <div className="space-y-2.5">
             {metrics.rankedAssumptions.map((item, idx) => {
               const assumption = nodes.find((n) => n.id === item.assumptionId) as AssumptionNode;
               if (!assumption) return null;
               const isSelected = selectedNodeId === item.assumptionId;
+              const overdue = currentDate ? isNodeOverdue(assumption, currentDate) : false;
 
               const statusColor =
                 assumption.status === 'validated'
@@ -321,6 +356,8 @@ export function DebtPanel({
                   className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
                     isSelected
                       ? 'border-amber-500 bg-amber-50/60 dark:bg-amber-950/30 ring-1 ring-amber-500 shadow-sm'
+                      : overdue
+                      ? 'border-rose-300 dark:border-rose-900 bg-rose-50/30 dark:bg-rose-950/20 hover:border-rose-400'
                       : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
@@ -329,14 +366,21 @@ export function DebtPanel({
                       <span className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                         #{idx + 1} {item.assumptionId}
                       </span>
-                      <span className="text-[10px] text-slate-500 truncate max-w-[120px]">
+                      <span className="text-[10px] text-slate-500 truncate max-w-[110px]">
                         {assumption.owner || 'Chưa gán'}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400 font-mono">
-                      <span>{item.riskScore.toFixed(1)}</span>
-                      <span className="text-[9px] font-normal text-slate-400">điểm</span>
+                    <div className="flex items-center gap-1.5">
+                      {overdue && (
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500 text-white flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5" /> Quá hạn
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1 font-bold text-amber-600 dark:text-amber-400 font-mono">
+                        <span>{item.riskScore.toFixed(1)}</span>
+                        <span className="text-[9px] font-normal text-slate-400">điểm</span>
+                      </div>
                     </div>
                   </div>
 
@@ -814,6 +858,172 @@ export function DebtPanel({
                   )}
                 </div>
               )}
+
+              {/* Phase 9: Evidence & Verification Notes */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Bookmark className="w-3.5 h-3.5 text-blue-500" />
+                    Bằng chứng kiểm chứng thực tế
+                  </span>
+                  <button
+                    onClick={() => setShowEvidenceForm(!showEvidenceForm)}
+                    className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    {showEvidenceForm ? 'Đóng' : 'Thêm bằng chứng'}
+                  </button>
+                </div>
+
+                {/* Existing Evidence Display */}
+                {(selectedNode.evidenceUrl || selectedNode.evidenceNotes) && (
+                  <div className="p-2.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-[11px] space-y-1">
+                    {selectedNode.evidenceUrl && (
+                      <a
+                        href={selectedNode.evidenceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1.5 font-bold text-blue-700 dark:text-blue-300 hover:underline break-all"
+                      >
+                        <LinkIcon className="w-3 h-3 flex-shrink-0" />
+                        <span>{selectedNode.evidenceUrl}</span>
+                        <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
+                      </a>
+                    )}
+                    {selectedNode.evidenceNotes && (
+                      <p className="text-slate-700 dark:text-slate-300 italic">
+                        &ldquo;{selectedNode.evidenceNotes}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Add Evidence Form */}
+                {showEvidenceForm && (
+                  <form
+                    onSubmit={handleAddEvidence}
+                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2 text-xs animate-in slide-in-from-top-1"
+                  >
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-0.5">
+                        Link hoặc ghi chú bằng chứng:
+                      </label>
+                      <input
+                        type="text"
+                        value={evidenceText}
+                        onChange={(e) => setEvidenceText(e.target.value)}
+                        placeholder="VD: https://jira.example.com/... hoặc kết quả khảo sát 10 khách hàng"
+                        className="w-full text-xs p-1.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-0.5">
+                        Ghi chú bổ sung (tùy chọn):
+                      </label>
+                      <input
+                        type="text"
+                        value={evidenceNote}
+                        onChange={(e) => setEvidenceNote(e.target.value)}
+                        placeholder="VD: Kết quả A/B test tuần 2 hoàn tất"
+                        className="w-full text-xs p-1.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowEvidenceForm(false)}
+                        className="px-2 py-1 text-slate-500 text-[11px]"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-[11px]"
+                      >
+                        Lưu bằng chứng
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Phase 9: Node History Timeline */}
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <HistoryIcon className="w-3.5 h-3.5 text-slate-500" />
+                    Lịch sử & Thay đổi ({selectedNode.history?.length || 0})
+                  </span>
+                </div>
+
+                {(!selectedNode.history || selectedNode.history.length === 0) ? (
+                  <p className="text-[10px] text-slate-400 italic p-2 bg-slate-50 dark:bg-slate-800/40 rounded-lg">
+                    Chưa có lịch sử thay đổi nào được ghi nhận cho nút này.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 pl-2 border-l-2 border-slate-200 dark:border-slate-800 ml-1">
+                    {getFormattedHistory(selectedNode).map((h, i) => {
+                      const isRefuted = h.action === 'refuted';
+                      const isValidated = h.action === 'validated';
+                      const isEvidence = h.action === 'evidence_added';
+                      const isCreated = h.action === 'created';
+
+                      const dotColor = isRefuted
+                        ? 'bg-rose-500 ring-rose-200'
+                        : isValidated
+                        ? 'bg-emerald-500 ring-emerald-200'
+                        : isEvidence
+                        ? 'bg-blue-500 ring-blue-200'
+                        : isCreated
+                        ? 'bg-purple-500 ring-purple-200'
+                        : 'bg-slate-400 ring-slate-200';
+
+                      const actionLabel = isRefuted
+                        ? 'Bị bác bỏ'
+                        : isValidated
+                        ? 'Đã xác thực'
+                        : isEvidence
+                        ? 'Bổ sung bằng chứng'
+                        : isCreated
+                        ? 'Tạo nút'
+                        : 'Chỉnh sửa';
+
+                      const formattedTime = new Date(h.at).toLocaleString('vi-VN', {
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      });
+
+                      return (
+                        <div key={i} className="relative pl-3.5 text-[10px] space-y-0.5">
+                          {/* Dot indicator */}
+                          <div
+                            className={`absolute -left-[5px] top-1 w-2 h-2 rounded-full ring-2 ${dotColor}`}
+                          />
+                          <div className="flex items-center justify-between text-slate-500">
+                            <span className="font-bold text-slate-700 dark:text-slate-300">
+                              {actionLabel}
+                            </span>
+                            <span className="font-mono text-[9px]">{formattedTime}</span>
+                          </div>
+                          {h.note && (
+                            <p className="text-slate-600 dark:text-slate-400 leading-snug">
+                              {h.note}
+                            </p>
+                          )}
+                          {h.evidence && (
+                            <p className="text-blue-600 dark:text-blue-400 truncate font-mono text-[9px]">
+                              {h.evidence}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="p-8 text-center text-slate-400 space-y-2">

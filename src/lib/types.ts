@@ -6,6 +6,24 @@ export type TaskStatus = 'active' | 'in_progress' | 'completed' | 'abandoned';
 
 export type NodeStatus = AssumptionStatus | DecisionStatus | TaskStatus;
 
+export type HistoryAction =
+  | 'created'
+  | 'status_change'
+  | 'refuted'
+  | 'validated'
+  | 'edited'
+  | 'evidence_added';
+
+export interface NodeHistoryEvent {
+  at: string; // ISO 8601 string, e.g. "2026-10-30T09:00:00.000Z"
+  action: HistoryAction;
+  from?: string;
+  to?: string;
+  note?: string;
+  evidence?: string;
+  author?: string;
+}
+
 export interface SourceReference {
   doc?: string;
   quote: string;
@@ -19,6 +37,9 @@ export interface BaseNode {
   effortWeeks?: number;
   owner?: string;
   source?: SourceReference;
+  history?: NodeHistoryEvent[];
+  evidenceUrl?: string;
+  evidenceNotes?: string;
 }
 
 export interface AssumptionNode extends BaseNode {

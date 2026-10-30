@@ -115,11 +115,11 @@ Nguyên tắc: **đề xuất, người duyệt, rồi mới tạo**. Không t�
 
 ## Phase 9: Lịch sử và bằng chứng (0.5-1 ngày)
 Lý do: phục vụ post-mortem ("thất bại do giả định nào sai") và chứng minh giá trị theo thời gian.
-- [ ] Trường tùy chọn `history?: { at, action, from, to, note, evidence? }[]` trên nút, ghi mỗi lần đổi trạng thái
-- [ ] Timeline trong panel chi tiết; ô bằng chứng có thể dán link hoặc ghi chú
-- [ ] Hàng đợi "Kiểm chứng tiếp theo": sắp theo rủi ro, nổi bật mục quá hạn `verifyBy`
-- [ ] Huy hiệu "quá hạn" trên nút và trong `DebtPanel`
-- Done when: bác bỏ `A1` rồi xem lịch sử thấy đủ thời điểm và ghi chú; `seed.json` cũ vẫn chạy không cần `history`.
+- [x] Trường tùy chọn `history?: { at, action, from, to, note, evidence? }[]` trên nút, ghi mỗi lần đổi trạng thái
+- [x] Timeline trong panel chi tiết; ô bằng chứng có thể dán link hoặc ghi chú
+- [x] Hàng đợi "Kiểm chứng tiếp theo": sắp theo rủi ro, nổi bật mục quá hạn `verifyBy`
+- [x] Huy hiệu "quá hạn" trên nút và trong `DebtPanel`
+- Done when: bác bỏ `A1` rồi xem lịch sử thấy đủ thời điểm và ghi chú; `seed.json` cũ vẫn chạy không cần `history` (11/11 tests in `history.test.ts`).
 
 ## Phase 10: Lưu trữ, xuất/nhập và báo cáo (1 ngày)
 - [ ] Lưu bền (chọn theo hiện trạng): `localStorage` cho MVP, hoặc file JSON/SQLite nếu cần nhiều dự án; refresh không mất dữ liệu
