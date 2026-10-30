@@ -122,11 +122,11 @@ Lý do: phục vụ post-mortem ("thất bại do giả định nào sai") và c
 - Done when: bác bỏ `A1` rồi xem lịch sử thấy đủ thời điểm và ghi chú; `seed.json` cũ vẫn chạy không cần `history` (11/11 tests in `history.test.ts`).
 
 ## Phase 10: Lưu trữ, xuất/nhập và báo cáo (1 ngày)
-- [ ] Lưu bền (chọn theo hiện trạng): `localStorage` cho MVP, hoặc file JSON/SQLite nếu cần nhiều dự án; refresh không mất dữ liệu
-- [ ] Xuất/nhập toàn bộ dự án bằng JSON có `schemaVersion`, kèm hàm migrate và test nhập file cũ
-- [ ] "Báo cáo nợ giả định" xuất Markdown hoặc bản in: tổng nợ (nhãn "ước tính"), top rủi ro, quá hạn, đã bác bỏ, các mục cần xem lại
-- [ ] Nút "Reset về seed" vẫn nạp đúng `data/demo/seed.json`
-- Done when: refresh giữa chừng demo vẫn giữ trạng thái; xuất rồi nhập lại cho đồ thị y hệt; báo cáo chạy được trên seed.
+- [x] Lưu bền (chọn theo hiện trạng): `localStorage` cho MVP, hoặc file JSON/SQLite nếu cần nhiều dự án; refresh không mất dữ liệu
+- [x] Xuất/nhập toàn bộ dự án bằng JSON có `schemaVersion`, kèm hàm migrate và test nhập file cũ
+- [x] "Báo cáo nợ giả định" xuất Markdown hoặc bản in: tổng nợ (nhãn "ước tính"), top rủi ro, quá hạn, đã bác bỏ, các mục cần xem lại
+- [x] Nút "Reset về seed" vẫn nạp đúng `data/demo/seed.json`
+- Done when: refresh giữa chừng demo vẫn giữ trạng thái; xuất rồi nhập lại cho đồ thị y hệt; báo cáo chạy được trên seed (6/6 tests in `storage.test.ts`, 3/3 tests in `report.test.ts`).
 
 ## Phase 11: Nhiều tài liệu và bộ lọc (1 ngày)
 - [ ] Thêm tài liệu thứ hai vào cùng dự án; gộp giả định trùng (so khớp văn bản chuẩn hóa, sau đó LLM nếu cần), người dùng duyệt gộp

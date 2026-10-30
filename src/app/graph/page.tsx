@@ -42,13 +42,18 @@ import {
   Loader2,
   Key,
   BookOpen,
-  ArrowRight
+  ArrowRight,
+  Download,
+  Upload,
+  Copy
 } from 'lucide-react';
 import Link from 'next/link';
 
 import { DocumentNodeComponent } from '@/components/DocumentNode';
 import { SAMPLE_DOCS, extractProjectTitleFromDoc } from '@/lib/sampleDocs';
 import { LLMProvider, PROVIDER_CONFIGS } from '@/lib/llm/types';
+import { exportProjectToJSON, importProjectFromJSON } from '@/lib/storage';
+import { generateAssumptionDebtReport } from '@/lib/report';
 
 const nodeTypes = {
   document: DocumentNodeComponent,
@@ -77,7 +82,10 @@ export default function GraphPage() {
     undo,
     redo,
     canUndo,
-    canRedo
+    canRedo,
+    tasks,
+    getMetrics,
+    importProject
   } = useGraphStore();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -103,6 +111,78 @@ export default function GraphPage() {
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [extractSuccess, setExtractSuccess] = useState<string | null>(null);
+
+  // Phase 10: Report & Storage State
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportMarkdown, setReportMarkdown] = useState('');
+  const [reportCopied, setReportCopied] = useState(false);
+  const [importNotification, setImportNotification] = useState<string | null>(null);
+
+  const handleOpenReportModal = () => {
+    const metrics = getMetrics(new Date());
+    const report = generateAssumptionDebtReport(
+      project,
+      storeNodes,
+      storeEdges,
+      metrics,
+      tasks,
+      { generatedAt: new Date() }
+    );
+    setReportMarkdown(report);
+    setIsReportModalOpen(true);
+  };
+
+  const handleCopyReport = () => {
+    navigator.clipboard.writeText(reportMarkdown);
+    setReportCopied(true);
+    setTimeout(() => setReportCopied(false), 2000);
+  };
+
+  const handleDownloadReport = () => {
+    const blob = new Blob([reportMarkdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${project.toLowerCase().replace(/[^a-z0-9]/g, '-')}-report.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportJSON = () => {
+    const json = exportProjectToJSON(project, storeNodes, storeEdges, tasks);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${project.toLowerCase().replace(/[^a-z0-9]/g, '-')}-graph.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJSONFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (!content) return;
+
+      const result = importProjectFromJSON(content);
+      if (!result.success || !result.data) {
+        alert(`Lỗi nhập file: ${result.error || 'Dữ liệu không hợp lệ'}`);
+        return;
+      }
+
+      importProject(result.data);
+      setImportNotification(
+        `Đã nhập thành công dự án "${result.data.project}" (${result.data.nodes.length} nút, ${result.data.edges.length} liên kết)!`
+      );
+      setTimeout(() => setImportNotification(null), 4000);
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // Reset input
+  };
 
   // Auto-restore API key from localStorage
   useEffect(() => {
@@ -470,6 +550,39 @@ export default function GraphPage() {
             <span>Demo: Bác bỏ {storeNodes.find((n) => n.type === 'assumption')?.id || 'A1'}</span>
           </button>
 
+          {/* Phase 10: Report & JSON Export/Import */}
+          <button
+            onClick={handleOpenReportModal}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+            title="Xem và xuất Báo cáo nợ giả định định dạng Markdown hoặc In"
+          >
+            <FileText className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Báo cáo</span>
+          </button>
+
+          <button
+            onClick={handleExportJSON}
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+            title="Xuất toàn bộ đồ thị và task thành file JSON có schemaVersion"
+          >
+            <Download className="w-3.5 h-3.5 text-blue-500" />
+            <span>Xuất JSON</span>
+          </button>
+
+          <label
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+            title="Nhập đồ thị từ file JSON đã lưu"
+          >
+            <Upload className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Nhập JSON</span>
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportJSONFile}
+              className="hidden"
+            />
+          </label>
+
           {/* Phase 7: Add Manual Node Button */}
           <button
             onClick={() => setIsAddModalOpen(true)}
@@ -499,6 +612,22 @@ export default function GraphPage() {
           </button>
         </div>
       </header>
+
+      {/* Import Notification Banner */}
+      {importNotification && (
+        <div className="bg-emerald-500/15 border-b border-emerald-500/30 px-6 py-2 flex items-center justify-between text-xs z-20 animate-in fade-in text-emerald-900 dark:text-emerald-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <span>{importNotification}</span>
+          </div>
+          <button
+            onClick={() => setImportNotification(null)}
+            className="text-emerald-700 dark:text-emerald-300 hover:text-emerald-900"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Notice Banner if new proposed assumptions are waiting in Review Inbox */}
       {proposedAssumptions.length > 0 && (
@@ -997,6 +1126,82 @@ export default function GraphPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Phase 10: Assumption Debt Report Modal */}
+      {isReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <span>Báo Cáo Nợ Giả Định (Assumption Debt Report)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
+                      Ước tính
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">Dự án: {project}</p>
+                </div>
+              </div>
+
+              {/* Action buttons: Copy & Download */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCopyReport}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 transition text-slate-700 dark:text-slate-300"
+                >
+                  {reportCopied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                      <span className="text-emerald-600 dark:text-emerald-400">Đã sao chép!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Sao chép Markdown</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={handleDownloadReport}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải file .md</span>
+                </button>
+
+                <button
+                  onClick={() => setIsReportModalOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition ml-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Markdown Preview Area */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950/20 font-mono text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap select-text">
+              {reportMarkdown}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between text-[11px] text-slate-500">
+              <span>Được định dạng theo chuẩn GitHub Flavored Markdown (GFM), sẵn sàng dán vào Jira, Confluence, GitHub PR hoặc xuất bản in.</span>
+              <button
+                onClick={() => setIsReportModalOpen(false)}
+                className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-semibold"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

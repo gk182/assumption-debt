@@ -105,6 +105,9 @@ interface GraphStore {
   // Phase 9: History & Evidence
   addEvidenceToNode: (id: string, evidence: string, note?: string) => void;
 
+  // Phase 10: Import / Export Project
+  importProject: (data: import('./storage').ProjectExportData) => void;
+
   // Phase 8: Task Generator
   tasks: GeneratedTask[];
   generateTasks: (topN?: number) => void;
@@ -442,6 +445,20 @@ export const useGraphStore = create<GraphStore>()(
         set((state) => ({
           cascade: state.cascade ? { ...state.cascade, isActive: false } : null
         }));
+      },
+
+      // Phase 10: Import / Export Project
+      importProject: (data) => {
+        set({
+          project: data.project,
+          nodes: data.nodes,
+          edges: data.edges,
+          tasks: data.tasks || [],
+          selectedNodeId: data.nodes[0]?.id || null,
+          cascade: null,
+          past: [],
+          future: []
+        });
       },
 
   // Phase 8: Task Generator Actions
