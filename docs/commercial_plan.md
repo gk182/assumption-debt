@@ -86,3 +86,4 @@
   - [ ] SSO / SAML (Okta, Azure AD).
   - [ ] Tùy chọn BYOK (Bring Your Own Key) cho LLM để đảm bảo quyền riêng tư dữ liệu nội bộ.
 * **Done when:** Người dùng có thể nâng cấp gói Pro/Team qua Stripe và quản lý thành viên trong tổ chức.
+
