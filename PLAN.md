@@ -160,48 +160,193 @@ Thứ tự đề xuất, mỗi bước độc lập:
 ---
 
 # PHẦN THƯƠNG MẠI HÓA (B2B SaaS Transition - Tiếp nối sau Phase 11 & 13)
-> Chi tiết kiến trúc & database schema xem tại: `docs/commercial_plan.md`
 
-## Phase 14: Đa người dùng & Lưu trữ Đám mây (Multi-tenant DB & Auth - 1-2 tuần)
+> **Mục tiêu chiến lược:** Chuyển đổi Assumption Debt từ một công cụ vẽ đồ thị phân tích cục bộ (Local Tool) thành **Nền tảng Quản trị Rủi ro và Giả định Dự án (Assumption & Risk Governance Platform)** dành cho các nhóm Product & Engineering trong doanh nghiệp.
+> **Nguyên tắc bảo toàn:** Giữ nguyên vẹn 100% logic đồ thị thuần khiết (`src/lib/graph.ts`), các unit test và các tính năng đã hoàn thành từ Phase 0 đến Phase 11. Các phase thương mại hóa chỉ bổ sung tầng lưu trữ đám mây, nạp dữ liệu tự động và tích hợp hệ sinh thái quản lý công việc.
+
+## 1. Định vị Sản phẩm & Lợi thế Cạnh tranh (Value Proposition & Moat)
+
+### Vấn đề cốt lõi
+Các doanh nghiệp công nghệ lãng phí 30–40% ngân sách kỹ thuật để xây dựng những tính năng vô dụng do quyết định được đưa ra dựa trên các giả định thị trường/kỹ thuật sai lầm nhưng không được kiểm chứng.
+
+### Định vị khác biệt
+* **Jira / Linear / ClickUp:** Quản lý *CÁI GÌ ĐƯỢC LÀM* (Execution & Tasks) — Mặc định mọi ticket đều đúng đắn.
+* **Assumption Debt:** Quản lý *TẠI SAO LẠI LÀM VÀ ĐỘ TIN CẬY CỦA NÓ* (Epistemology & Risk) — Quản lý nền tảng niềm tin đứng sau toàn bộ backlog.
+
+### Rào cản phòng thủ (Moat)
+1. **Deterministic Dependency Engine:** Mối liên kết phụ thuộc có thể kiểm tra toán học giữa Giả định $\rightarrow$ Quyết định $\rightarrow$ Công việc $\rightarrow$ Tuần rủi ro.
+2. **Workflow Embedded:** Không phải là một trang dashboard cô lập để người dùng copy-paste, mà gắn chặt vào PRD (Notion, Google Docs), Code (GitHub PR, ADR) và Task tracker (Linear, Jira).
+3. **Historical Veracity Ledger:** Dữ liệu lịch sử về tỷ lệ giả định đúng/sai của từng nhóm/PM theo thời gian.
+
+---
+
+## 2. Kiến trúc Kỹ thuật Thương mại (Target Architecture)
+
+```mermaid
+flowchart TD
+    subgraph Ingestion["1. Tầng Thu thập (Ingestion)"]
+        GDocs["Google Docs / Notion API"]
+        GH["GitHub PR / ADR Webhooks"]
+        FFile["PDF / Markdown Drag & Drop"]
+    end
+
+    subgraph CoreEngine["2. Backend & Extraction Engine"]
+        API["Next.js App Router / Edge API"]
+        Queue["Async Job Queue (Inngest / BullMQ)"]
+        LLM["Multi-LLM Router (Claude 3.5 Sonnet / Gemini 2.5 Flash)"]
+        GraphCore["Deterministic Graph Engine (graph.ts)"]
+    end
+
+    subgraph Storage["3. Tầng Dữ liệu (Multi-tenant DB)"]
+        PG[("PostgreSQL (Supabase / Neon)")]
+        Rbac["Row-Level Security & Org Tenancy"]
+    end
+
+    subgraph Sync["4. Tầng Tích hợp Vòng lặp (Action Loop)"]
+        Jira["Jira / Linear 2-way Sync"]
+        Slack["Slack Bot (Stale Alerts & Cascade Warnings)"]
+    end
+
+    subgraph UI["5. Giao diện Người dùng"]
+        Web["Next.js + React Flow (Realtime Collaboration)"]
+    end
+
+    Ingestion --> API
+    API --> Queue
+    Queue --> LLM
+    LLM --> GraphCore
+    GraphCore --> PG
+    PG --> Rbac
+    Rbac --> UI
+    GraphCore --> Sync
+```
+
+---
+
+## 3. Chi tiết 5 Phase Thương mại hóa (Phases 14 - 18)
+
+### Phase 14: Đa người dùng & Lưu trữ Đám mây (Multi-tenant DB & Auth - 1-2 tuần)
 Lý do: Thoát khỏi giới hạn localStorage để nhiều người trong cùng tổ chức/team có thể cùng làm việc trên một dự án.
-- [ ] Thiết lập PostgreSQL (Supabase / Neon) với Drizzle ORM hoặc Prisma
-- [ ] Schema đa người dùng: `Organization` -> `Workspace` -> `Project` -> `Document` -> `Nodes` & `Edges` (xem `docs/commercial_plan.md`)
-- [ ] Tích hợp xác thực (Auth): Clerk hoặc Supabase Auth (hỗ trợ Google Workspace / GitHub OAuth)
-- [ ] API CRUD đồng bộ đồ thị từ Zustand lên Cloud DB; duy trì fallback offline cho chế độ demo
+- [ ] **Database & ORM:** Thiết lập PostgreSQL với Prisma hoặc Drizzle ORM (Supabase / Neon).
+- [ ] **Mô hình Thực thể (Schema):** `Organization` $\rightarrow$ `Workspace` $\rightarrow$ `Project` $\rightarrow$ `Document` $\rightarrow$ `GraphNodes` & `GraphEdges`.
+- [ ] **Xác thực & Phân quyền (Auth & RBAC):** Tích hợp Clerk / Supabase Auth (hỗ trợ Google Workspace SSO, GitHub OAuth, mời thành viên theo role: Admin, Editor, Viewer).
+- [ ] **Di chuyển trạng thái:** API CRUD cho Projects/Graphs, tự động đồng bộ trạng thái khi chỉnh sửa node/edge; duy trì fallback offline cho demo.
 - Done when: Đăng nhập tài khoản trên máy A, mở trên máy B thấy đúng đồ thị và trạng thái đã lưu.
 
-## Phase 15: Nạp Dữ liệu Không ma sát (Zero-Friction Ingestion - 1 tuần)
+### Phase 15: Nạp Dữ liệu Không ma sát (Zero-Friction Ingestion - 1 tuần)
 Lý do: Xóa bỏ hoàn toàn thao tác copy-paste thủ công vốn làm giảm retention của người dùng thực tế.
-- [ ] Kéo thả file trực tiếp (.pdf, .docx, .md) kèm parser trích xuất văn bản tự động
-- [ ] Tích hợp Notion API & Google Docs API qua OAuth2 để chọn tài liệu PRD trực tiếp
-- [ ] GitHub App / Action: Tự động quét file Architecture Decision Record (`docs/adr/*.md`) hoặc mô tả PR khi mở Pull Request
-- [ ] Async Job Queue (Inngest / BullMQ) để xử lý tài liệu dài trong nền không bị timeout HTTP
-- Done when: Kéo 1 file PDF hoặc chọn 1 trang Notion, hệ thống tự trích xuất và đưa vào Hòm thư duyệt.
+- [ ] **Tải tệp trực tiếp:** Hỗ trợ kéo thả file `.pdf`, `.docx`, `.md` với bộ phân tích tự động trích xuất cấu trúc văn bản.
+- [ ] **Tích hợp Google Docs & Notion:** Kết nối OAuth2 để chọn tài liệu PRD trực tiếp từ Notion Workspace hoặc Google Drive.
+- [ ] **GitHub PR & ADR App:** GitHub Bot tự động quét các file Architecture Decision Record (`docs/adr/*.md`) hoặc mô tả PR để trích xuất giả định mỗi khi có Pull Request mới.
+- [ ] **Hàng đợi Xử lý Nền (Async Queue):** Dùng Inngest / Upstash QStash xử lý tài liệu dài mà không bị timeout HTTP.
+- Done when: Kéo 1 file PDF hoặc chọn 1 trang Notion, hệ thống tự động trích xuất và đưa vào Hòm thư duyệt (Review Inbox).
 
-## Phase 16: Tích hợp Vòng lặp & Hệ sinh thái (SaaS Moat - Linear/Jira & Slack - 1-2 tuần)
+### Phase 16: Tích hợp Vòng lặp & Hệ sinh thái (SaaS Moat - Linear/Jira & Slack - 1-2 tuần)
 Lý do: Tạo rào cản phòng thủ bằng việc can thiệp trực tiếp vào quy trình làm việc hàng ngày của nhóm dev/PM.
-- [ ] Tích hợp Linear API & Jira REST API v3:
-  - [ ] Nút 1-click đẩy Verification Tasks thành ticket trên Jira/Linear kèm link ngược về Assumption Debt
-  - [ ] **Cascade Sync:** Khi một Assumption bị Bác bỏ (Refuted) -> tự động gắn cờ rủi ro `[ASSUMPTION FAILED]` hoặc cảnh báo trên các ticket Jira/Linear phụ thuộc
-- [ ] Slack App / Bot:
-  - [ ] Báo cáo định kỳ tuần "Weekly Assumption Debt" về kênh dự án
-  - [ ] Cảnh báo tức thì khi giả định quan trọng bị quá hạn kiểm chứng (`verifyBy`) hoặc bị bác bỏ
-- Done when: Bác bỏ A1 trên app -> Slack thông báo ngay lập tức và ticket liên quan trên Jira/Linear nhận cờ cảnh báo.
+- [ ] **Linear & Jira 2-way Sync:**
+  - [ ] Nút *"Xuất sang Linear / Jira"* tạo trực tiếp Verification Tasks kèm nhãn và liên kết ngược về Assumption Debt.
+  - [ ] **Cascade Sync:** Khi một Assumption bị **Bác bỏ (Refuted)** $\rightarrow$ tự động gắn cờ cảnh báo `[ASSUMPTION FAILED]` trên các ticket Jira/Linear phụ thuộc.
+- [ ] **Slack App / Bot:**
+  - [ ] Hàng tuần gửi bản tóm tắt *"Weekly Assumption Debt"* về kênh dự án.
+  - [ ] Cảnh báo tức thì: *"⚠️ Giả định A2 (ảnh hưởng 6 tuần dev) đã quá hạn 14 ngày chưa có kết quả kiểm chứng!"*
+  - [ ] Thông báo Cascade: *"🚨 A1 vừa bị bác bỏ! 3 quyết định và 4 task sau đây cần họp khẩn để đánh giá lại!"*
+- Done when: Bác bỏ A1 trên app $\rightarrow$ Slack thông báo ngay lập tức và ticket liên quan trên Jira/Linear nhận cờ cảnh báo.
 
-## Phase 17: Bảng điều khiển Quản trị & Phân tích (Analytics & Governance - 1 tuần)
-Lý do: Cung cấp con số định lượng cho lãnh đạo (VP of Product, CTO) để theo dõi nợ giả định qua các sprint.
-- [ ] Biểu đồ Giảm nợ giả định (Assumption Debt Burn-down Chart) theo quý/sprint
-- [ ] Vận tốc kiểm chứng (Verification Velocity): Thời gian trung bình để xác thực hoặc bác bỏ một giả định
-- [ ] Nhật ký kiểm toán (Audit Trail): Lưu vết chi tiết ai đã xác nhận, chỉnh sửa hoặc bác bỏ kèm bằng chứng
+### Phase 17: Bảng điều khiển Quản trị & Phân tích (Analytics & Governance - 1 tuần)
+Lý do: Cung cấp con số định lượng cho lãnh đạo (VP of Product, CTO, CPO) để theo dõi nợ giả định qua các sprint.
+- [ ] **Biểu đồ Giảm nợ (Assumption Debt Burn-down Chart):** Theo dõi xu hướng giảm dần của tổng số tuần rủi ro qua từng quý.
+- [ ] **Chỉ số Vận tốc Kiểm chứng (Verification Velocity):** Thời gian trung bình từ lúc phát hiện giả định đến khi xác thực/bác bỏ.
+- [ ] **Nhật ký Kiểm toán (Audit Trail):** Lưu vết toàn bộ lịch sử ai đã thêm, xác thực, bác bỏ node và lý do.
+- [ ] **Multiplayer Realtime:** Hiển thị con trỏ chuột và cập nhật tức thời khi nhiều thành viên cùng xem/thảo luận trên đồ thị.
 - Done when: Xuất được báo cáo điều hành toàn diện kèm biểu đồ xu hướng rủi ro cho cuộc họp Sprint Review.
 
-## Phase 18: Thương mại hóa & Doanh nghiệp (Monetization & Enterprise - 1-2 tuần)
-Lý do: Thu phí định kỳ (SaaS Subscription) và đáp ứng tiêu chuẩn bảo mật cho khách hàng B2B.
-- [ ] Cổng thanh toán Stripe (Gói Free, Gói Team $15-$20/seat/tháng, Gói Enterprise)
-- [ ] Single Sign-On (SAML/Okta / Azure AD) cho doanh nghiệp
-- [ ] Tùy chọn BYOK (Bring Your Own Key) cho LLM để đảm bảo quyền riêng tư dữ liệu nội bộ
+### Phase 18: Thương mại hóa, Định giá & Bảo mật Doanh nghiệp (Enterprise & Monetization - 1-2 tuần)
+Lý do: Thu phí định kỳ (SaaS Subscriptions) và đáp ứng tiêu chuẩn bảo mật cho khách hàng B2B.
+- [ ] **Cổng thanh toán:** Tích hợp Stripe Billing (Subscription, Invoicing).
+- [ ] **Mô hình định giá (Pricing Tiers):**
+  - **Starter (Miễn phí):** Tối đa 2 dự án, 1 người dùng, lưu trữ cục bộ/cơ bản.
+  - **Team ($15 - $20/seat/tháng):** Không giới hạn dự án, đồng bộ Cloud, tích hợp Linear/Jira/Slack, tối đa 20 thành viên.
+  - **Enterprise (Tùy chỉnh):** Single Sign-On (SAML/Okta), Custom LLM Key (BYOK), Cam kết không dùng dữ liệu để train AI (SOC2/GDPR compliance), Hỗ trợ dedicated.
 - Done when: Người dùng có thể nâng cấp gói Pro/Team qua Stripe và quản lý thành viên trong tổ chức.
 
+---
+
+## 4. Thiết kế Database Schema Cốt lõi (Drizzle/Prisma Blueprint)
+
+```typescript
+// Users & Orgs
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  plan: 'starter' | 'team' | 'enterprise';
+  createdAt: Date;
+}
+
+export interface WorkspaceMember {
+  orgId: string;
+  userId: string;
+  role: 'admin' | 'editor' | 'viewer';
+}
+
+// Projects & Documents
+export interface Project {
+  id: string;
+  orgId: string;
+  name: string;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Document {
+  id: string;
+  projectId: string;
+  title: string;
+  sourceUrl?: string; // e.g. Notion URL, Google Doc link
+  contentHash: string;
+  rawText: string;
+  createdAt: Date;
+}
+
+// Graph Nodes & Edges
+export interface StoredNode {
+  id: string;
+  projectId: string;
+  documentId?: string;
+  type: 'assumption' | 'decision' | 'task';
+  text: string;
+  status?: 'proposed' | 'unverified' | 'validated' | 'refuted';
+  importance?: number;
+  confidence?: number;
+  effortWeeks?: number;
+  owner?: string;
+  verifyBy?: string;
+  sourceQuote?: string;
+  externalRefId?: string; // Jira Issue Key (e.g. PROJ-123) or Linear ID
+}
+
+export interface StoredEdge {
+  id: string;
+  projectId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  relation: 'depends_on' | 'enables' | 'originates_from';
+}
+```
+
+---
+
+## 5. Kế hoạch Hành động Ngay (Sprint 1 Backlog - 2 Tuần tới)
+
+1. **Khởi tạo Database Schema:** Cài đặt Drizzle ORM + PostgreSQL (kết nối Supabase hoặc Neon miễn phí cho dev).
+2. **Triển khai Server Actions / API Routes:**
+   - `POST /api/projects` & `GET /api/projects/:id`
+   - `PUT /api/projects/:id/graph` (Lưu snapshot đồ thị từ Zustand lên DB).
+3. **Cài đặt Tải File (PDF/Markdown parsing):** Cho phép người dùng kéo thả trực tiếp file `.md` hoặc `.txt` thay vì chỉ dán textarea.
+4. **Tích hợp Webhook Web-out đầu tiên:** Thử nghiệm bắn thông báo qua Slack Webhook khi bấm nút "Bác bỏ" giả định.
+
+---
 ## Thứ tự khuyến nghị
 1. **6b** (kiểm chứng thật, quyết định có đi tiếp không)
 2. **7** (sửa tay) và **8** (task kiểm chứng): hai tính năng làm công cụ dùng được thật
