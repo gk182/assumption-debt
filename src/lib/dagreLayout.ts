@@ -24,18 +24,18 @@ export function getLayoutedElements(
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  // Clean, comfortable layout spacing inspired by Vercel architecture diagrams
+  // Generous, expansive layout spacing so the graph breathes naturally across widescreen monitors
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: isCompact ? 24 : 32,
-    ranksep: isCompact ? 80 : 110,
-    marginx: 36,
-    marginy: 36
+    nodesep: isCompact ? 40 : 64,
+    ranksep: isCompact ? 140 : 220,
+    marginx: 60,
+    marginy: 60
   });
 
   const nodeDimensions: Record<string, { width: number; height: number }> = {
-    document: { width: 280, height: 135 },
-    assumption: { width: 290, height: isCompact ? 100 : 160 },
+    document: { width: 280, height: isCompact ? 110 : 140 },
+    assumption: { width: 290, height: isCompact ? 95 : 160 },
     decision: { width: 260, height: isCompact ? 80 : 105 },
     task: { width: 220, height: isCompact ? 70 : 85 }
   };

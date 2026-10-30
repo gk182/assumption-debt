@@ -116,6 +116,22 @@ function AdaptiveBackground({ variant = BackgroundVariant.Dots }: AdaptiveBackgr
   );
 }
 
+function CanvasZoomControl() {
+  const { zoom } = useViewport();
+  const { zoomTo } = useReactFlow();
+  const zoomPct = Math.round((zoom || 1) * 100);
+
+  return (
+    <button
+      onClick={() => zoomTo(1.0, { duration: 300 })}
+      className="px-1.5 py-1 text-[11px] font-mono font-semibold rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 transition"
+      title="Bấm để đặt lại độ phóng về 100%"
+    >
+      {zoomPct}%
+    </button>
+  );
+}
+
 function GraphInner() {
   const {
     project,
@@ -144,7 +160,7 @@ function GraphInner() {
     mergeNodes
   } = useGraphStore();
 
-  const { zoomIn, zoomOut, fitView, setViewport } = useReactFlow();
+  const { zoomIn, zoomOut, fitView, zoomTo, setViewport } = useReactFlow();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -518,16 +534,16 @@ function GraphInner() {
           ...edge,
           animated: true,
           style: {
-            stroke: isTargetSelected ? '#0070f3' : '#a3a3a3',
-            strokeWidth: isTargetSelected ? 2.5 : 1.5,
-            strokeDasharray: '4 4',
-            opacity: 0.8
+            stroke: isTargetSelected ? '#0070f3' : '#888888',
+            strokeWidth: isTargetSelected ? 2.8 : 2,
+            strokeDasharray: '5 5',
+            opacity: 0.85
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: 10,
-            height: 10,
-            color: isTargetSelected ? '#0070f3' : '#a3a3a3'
+            width: 12,
+            height: 12,
+            color: isTargetSelected ? '#0070f3' : '#888888'
           }
         };
       }
@@ -546,11 +562,11 @@ function GraphInner() {
         return {
           ...edge,
           animated: true,
-          style: { stroke: '#ee0000', strokeWidth: 2.5 },
+          style: { stroke: '#ee0000', strokeWidth: 3 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: 13,
-            height: 13,
+            width: 14,
+            height: 14,
             color: '#ee0000'
           }
         };
@@ -560,11 +576,11 @@ function GraphInner() {
         return {
           ...edge,
           animated: true,
-          style: { stroke: '#0070f3', strokeWidth: 2.2 },
+          style: { stroke: '#0070f3', strokeWidth: 2.8 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: 13,
-            height: 13,
+            width: 14,
+            height: 14,
             color: '#0070f3'
           }
         };
@@ -575,15 +591,15 @@ function GraphInner() {
         ...edge,
         animated: false,
         style: {
-          stroke: isDimmed ? '#d4d4d4' : '#737373',
-          strokeWidth: 1.5,
-          opacity: isDimmed ? 0.35 : 0.85
+          stroke: isDimmed ? '#404040' : '#8a8a8e',
+          strokeWidth: 2,
+          opacity: isDimmed ? 0.3 : 0.95
         },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          width: 12,
-          height: 12,
-          color: isDimmed ? '#d4d4d4' : '#737373'
+          width: 13,
+          height: 13,
+          color: isDimmed ? '#404040' : '#8a8a8e'
         }
       };
     });
@@ -1031,9 +1047,9 @@ function GraphInner() {
             onEdgesDelete={onEdgesDelete}
             nodeTypes={nodeTypes}
             fitView
-            fitViewOptions={{ padding: 0.15, maxZoom: 1.0, minZoom: 0.4 }}
-            minZoom={0.2}
-            maxZoom={2.0}
+            fitViewOptions={{ padding: 0.2, maxZoom: 1.0, minZoom: 0.65 }}
+            minZoom={0.35}
+            maxZoom={2.2}
             proOptions={{ hideAttribution: true }}
           >
             {/* Adaptive Dot Background that never disappears when zooming out */}
@@ -1055,24 +1071,26 @@ function GraphInner() {
           </ReactFlow>
 
           {/* Vercel Sleek Floating Canvas Toolbar (Bottom-Right) */}
-          <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 p-1 bg-white dark:bg-[#0a0a0a] border border-neutral-200 dark:border-neutral-800 rounded-md shadow-sm">
+          <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 p-1 bg-white dark:bg-[#141417] border border-neutral-200 dark:border-neutral-700/80 rounded-md shadow-md">
+            <CanvasZoomControl />
+            <div className="w-[1px] h-4 bg-neutral-200 dark:border-neutral-700 mx-0.5" />
             <button
               onClick={() => zoomIn({ duration: 300 })}
-              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 transition"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
               title="Phóng to (+)"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => zoomOut({ duration: 300 })}
-              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 transition"
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
               title="Thu nhỏ (-)"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => fitView({ duration: 400, padding: 0.15 })}
-              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 transition"
+              onClick={() => fitView({ duration: 400, padding: 0.2, minZoom: 0.65 })}
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
               title="Vừa màn hình (Fit View)"
             >
               <Maximize2 className="w-3.5 h-3.5" />
