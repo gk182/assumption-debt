@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Internal agent configs, planning & design documentation
+/docs/
+/.agents/
+AGENTS.md
+/.claude/
+CLAUDE.md
+PLAN.md
+DESIGN.md
+GEMINI.md

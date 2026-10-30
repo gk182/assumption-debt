@@ -17,7 +17,7 @@
 
 <br />
 
-[Live Demo](#quickstart) • [Core Philosophy](#core-philosophy) • [Key Features](#key-features) • [Architecture](#architecture) • [Roadmap](#roadmap) • [Documentation](docs/)
+[Live Demo](#quickstart) • [Core Philosophy](#core-philosophy) • [Key Features](#key-features) • [Architecture](#architecture) • [Roadmap](#roadmap) • [Quickstart](#quickstart)
 
 <br />
 
@@ -132,7 +132,7 @@ flowchart LR
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/your-username/assumption-debt.git
+git clone https://github.com/gk182/assumption-debt.git
 cd assumption-debt
 npm install
 ```
@@ -205,7 +205,7 @@ The repository comes pre-loaded with an offline-ready scenario (*Instant Merchan
 
 ## 🗺️ Roadmap & Commercial Evolution
 
-The project is structured according to [`PLAN.md`](PLAN.md) and calibrated by our [Independent Red Team Audit](docs/red_team_audit.md):
+The project is structured according to an iterative, risk-calibrated execution plan and validated through rigorous red-team auditing:
 
 ```
 Phase 0 - 11: Local MVP & Graph Engine [COMPLETED]
@@ -234,16 +234,9 @@ B2B SaaS Transition [IN PROGRESS]
 
 ```text
 assumption-debt/
-├── .agents/skills/            # Agentic skills for Antigravity & Claude Code
 ├── data/
 │   ├── demo/                  # Cached extractions & seed.json for offline demo
 │   └── fixtures/              # Real-world PRD/ADR test cases for evaluation
-├── docs/
-│   ├── adr/                   # Architecture Decision Records
-│   ├── commercial_plan.md     # Detailed B2B SaaS architectural blueprint
-│   ├── decisions.md           # Engineering & product decision log
-│   ├── eval-log.md            # Extraction accuracy benchmark results
-│   └── red_team_audit.md      # Independent Red Team Strategic Audit
 ├── src/
 │   ├── app/                   # Next.js 16 App Router (page, review, graph)
 │   ├── components/            # React Flow custom nodes (Assumption, Decision, Task, Doc)
@@ -258,7 +251,7 @@ assumption-debt/
 │       ├── storage.ts         # JSON project export/import & version migration
 │       ├── store.ts           # Zustand global state & undo/redo stack
 │       └── tasks.ts           # Human-in-the-loop task generation
-├── PLAN.md                    # Canonical project plan & phase criteria
+├── LICENSE                    # MIT License
 └── README.md                  # Project documentation
 ```
 
