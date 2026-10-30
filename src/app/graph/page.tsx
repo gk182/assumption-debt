@@ -3,7 +3,8 @@
 import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import {
   ReactFlow,
-  Controls,
+  ReactFlowProvider,
+  useReactFlow,
   Background,
   MiniMap,
   useNodesState,
@@ -45,7 +46,15 @@ import {
   ArrowRight,
   Download,
   Upload,
-  Copy
+  Copy,
+  Filter,
+  Map as MapIcon,
+  Target,
+  ArrowRightLeft,
+  GitMerge,
+  SlidersHorizontal,
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -54,6 +63,9 @@ import { SAMPLE_DOCS, extractProjectTitleFromDoc } from '@/lib/sampleDocs';
 import { LLMProvider, PROVIDER_CONFIGS } from '@/lib/llm/types';
 import { exportProjectToJSON, importProjectFromJSON } from '@/lib/storage';
 import { generateAssumptionDebtReport } from '@/lib/report';
+import { findPotentialDuplicates, DuplicateCandidate } from '@/lib/dedup';
+import { downstream } from '@/lib/graph';
+import { AssumptionNode } from '@/lib/types';
 
 const nodeTypes = {
   document: DocumentNodeComponent,
@@ -62,7 +74,7 @@ const nodeTypes = {
   task: TaskNodeComponent
 };
 
-export default function GraphPage() {
+function GraphInner() {
   const {
     project,
     nodes: storeNodes,
@@ -85,8 +97,12 @@ export default function GraphPage() {
     canRedo,
     tasks,
     getMetrics,
-    importProject
+    getNeedsReviewIds,
+    importProject,
+    mergeNodes
   } = useGraphStore();
+
+  const { zoomIn, zoomOut, fitView, setViewport } = useReactFlow();
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -112,15 +128,136 @@ export default function GraphPage() {
   const [extractError, setExtractError] = useState<string | null>(null);
   const [extractSuccess, setExtractSuccess] = useState<string | null>(null);
 
-  // Phase 10: Report & Storage State
+  // Phase 11: Multi-document Extraction Options
+  const [extractMode, setExtractMode] = useState<'replace' | 'append'>('replace');
+  const [extractDocTitle, setExtractDocTitle] = useState<string>('');
+
+  // Phase 10: Storage & Report Modal State
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportMarkdown, setReportMarkdown] = useState('');
-  const [reportCopied, setReportCopied] = useState(false);
+  const [copyReportSuccess, setCopyReportSuccess] = useState(false);
   const [importNotification, setImportNotification] = useState<string | null>(null);
 
+  // Graph View Settings
+  const [includeProjectRoot, setIncludeProjectRoot] = useState(true);
+  const [isCompact, setIsCompact] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false);
+  const [layoutDirection, setLayoutDirection] = useState<'LR' | 'TB'>('LR');
+
+  // Phase 11: Smart Filter & Focus States
+  const [showFilterBar, setShowFilterBar] = useState(false);
+  const [filterDoc, setFilterDoc] = useState<string>('all');
+  const [filterShowAssumptions, setFilterShowAssumptions] = useState<boolean>(true);
+  const [filterShowDecisions, setFilterShowDecisions] = useState<boolean>(true);
+  const [filterShowTasks, setFilterShowTasks] = useState<boolean>(true);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [focusMode, setFocusMode] = useState<boolean>(false);
+
+  // Phase 11: Deduplication Candidates & Modal
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateCandidate | null>(null);
+
+  // Load API key from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedKey = localStorage.getItem('assumption_debt_api_key');
+      if (savedKey) setExtractApiKey(savedKey);
+    }
+  }, []);
+
+  // Compute unique documents in current graph
+  const availableDocs = useMemo(() => {
+    const docs = new Set<string>();
+    storeNodes.forEach((n) => {
+      if (n.source?.doc) docs.add(n.source.doc);
+    });
+    return Array.from(docs);
+  }, [storeNodes]);
+
+  // Compute potential duplicate assumptions
+  const assumptionNodes = useMemo(
+    () => storeNodes.filter((n): n is AssumptionNode => n.type === 'assumption'),
+    [storeNodes]
+  );
+  const duplicateCandidates = useMemo(
+    () => findPotentialDuplicates(assumptionNodes, 0.65),
+    [assumptionNodes]
+  );
+
+  const needsReviewIds = useMemo(() => getNeedsReviewIds(), [getNeedsReviewIds, storeNodes, storeEdges]);
+
+  // Active filter count for badge
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filterDoc !== 'all') count++;
+    if (!filterShowAssumptions || !filterShowDecisions || !filterShowTasks) count++;
+    if (filterStatus !== 'all') count++;
+    if (filterCategory !== 'all') count++;
+    if (focusMode && selectedNodeId) count++;
+    return count;
+  }, [filterDoc, filterShowAssumptions, filterShowDecisions, filterShowTasks, filterStatus, filterCategory, focusMode, selectedNodeId]);
+
+  // Filter nodes & edges for graph visualization
+  const visibleNodes = useMemo(() => {
+    return storeNodes.filter((node) => {
+      // 1. Type visibility
+      if (node.type === 'assumption' && !filterShowAssumptions) return false;
+      if (node.type === 'decision' && !filterShowDecisions) return false;
+      if (node.type === 'task' && !filterShowTasks) return false;
+
+      // 2. Document filter
+      if (filterDoc !== 'all') {
+        const doc = node.source?.doc;
+        if (doc && doc !== filterDoc) return false;
+      }
+
+      // 3. Status filter
+      if (filterStatus !== 'all') {
+        if (filterStatus === 'needs_review') {
+          if (!needsReviewIds.has(node.id)) return false;
+        } else if (node.type === 'assumption') {
+          if (node.status !== filterStatus) return false;
+        }
+      }
+
+      // 4. Category filter
+      if (filterCategory !== 'all' && node.type === 'assumption') {
+        if (node.category !== filterCategory) return false;
+      }
+
+      // 5. Focus mode (isolate downstream cascade of selected node)
+      if (focusMode && selectedNodeId) {
+        const downstreamData = downstream(selectedNodeId, storeEdges);
+        const allowedIds = new Set([selectedNodeId, ...downstreamData.nodes]);
+        if (!allowedIds.has(node.id)) return false;
+      }
+
+      return true;
+    });
+  }, [
+    storeNodes,
+    storeEdges,
+    filterShowAssumptions,
+    filterShowDecisions,
+    filterShowTasks,
+    filterDoc,
+    filterStatus,
+    filterCategory,
+    focusMode,
+    selectedNodeId,
+    needsReviewIds
+  ]);
+
+  const visibleEdges = useMemo(() => {
+    const visibleIds = new Set(visibleNodes.map((n) => n.id));
+    return storeEdges.filter((e) => visibleIds.has(e.from) && visibleIds.has(e.to));
+  }, [storeEdges, visibleNodes]);
+
+  // Phase 10: Report handlers
   const handleOpenReportModal = () => {
     const metrics = getMetrics(new Date());
-    const report = generateAssumptionDebtReport(
+    const md = generateAssumptionDebtReport(
       project,
       storeNodes,
       storeEdges,
@@ -128,24 +265,18 @@ export default function GraphPage() {
       tasks,
       { generatedAt: new Date() }
     );
-    setReportMarkdown(report);
+    setReportMarkdown(md);
     setIsReportModalOpen(true);
   };
 
-  const handleCopyReport = () => {
-    navigator.clipboard.writeText(reportMarkdown);
-    setReportCopied(true);
-    setTimeout(() => setReportCopied(false), 2000);
-  };
-
-  const handleDownloadReport = () => {
-    const blob = new Blob([reportMarkdown], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${project.toLowerCase().replace(/[^a-z0-9]/g, '-')}-report.md`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleCopyReport = async () => {
+    try {
+      await navigator.clipboard.writeText(reportMarkdown);
+      setCopyReportSuccess(true);
+      setTimeout(() => setCopyReportSuccess(false), 2500);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleExportJSON = () => {
@@ -159,46 +290,30 @@ export default function GraphPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleImportJSONFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      if (!content) return;
-
-      const result = importProjectFromJSON(content);
-      if (!result.success || !result.data) {
-        alert(`Lỗi nhập file: ${result.error || 'Dữ liệu không hợp lệ'}`);
-        return;
+    try {
+      const text = await file.text();
+      const res = importProjectFromJSON(text);
+      if (!res.success || !res.data) {
+        throw new Error(res.error || 'Dữ liệu không hợp lệ');
       }
-
-      importProject(result.data);
-      setImportNotification(
-        `Đã nhập thành công dự án "${result.data.project}" (${result.data.nodes.length} nút, ${result.data.edges.length} liên kết)!`
-      );
+      importProject(res.data);
+      setImportNotification(`Đã khôi phục thành công dự án "${res.data.project}" (${res.data.nodes.length} nút)!`);
       setTimeout(() => setImportNotification(null), 4000);
-    };
-    reader.readAsText(file);
-    e.target.value = ''; // Reset input
-  };
-
-  // Auto-restore API key from localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedKey = localStorage.getItem('assumption_debt_api_key');
-      if (savedKey) {
-        setExtractApiKey(savedKey);
-      }
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'File JSON không hợp lệ');
     }
-  }, []);
+    e.target.value = '';
+  };
 
   const handleSelectPreset = (docId: string) => {
     setSelectedPresetId(docId);
     const found = SAMPLE_DOCS.find((d) => d.id === docId);
     if (found) {
       setExtractDocText(found.content);
+      setExtractDocTitle(found.title.split(':')[1]?.split('(')[0]?.trim() || found.title);
     }
   };
 
@@ -239,20 +354,29 @@ export default function GraphPage() {
         throw new Error('Không tìm thấy giả định nào phù hợp hoặc trích dẫn không khớp với văn bản.');
       }
 
-      const docTitle = extractUseAi
-        ? extractProjectTitleFromDoc(extractDocText)
-        : 'Instant Merchant Advance (Mockup)';
+      const docTitle =
+        extractDocTitle.trim() ||
+        (extractUseAi
+          ? extractProjectTitleFromDoc(extractDocText)
+          : selectedPresetId
+          ? SAMPLE_DOCS.find((d) => d.id === selectedPresetId)?.title
+          : 'Instant Merchant Advance');
 
-      // Commit directly to graph
+      // Commit to graph (replace or append based on extractMode)
       setProposedData(
         json.data.assumptions,
         json.data.decisions || [],
         json.data.links || [],
         docTitle
       );
-      commitReviewToGraph(true);
+      commitReviewToGraph(extractMode === 'replace');
 
-      setExtractSuccess(`Đã tạo thành công đồ thị mới cho "${docTitle}"!`);
+      setExtractSuccess(
+        extractMode === 'replace'
+          ? `Đã tạo mới đồ thị cho "${docTitle}"!`
+          : `Đã gộp thêm tài liệu "${docTitle}" vào đồ thị chung!`
+      );
+
       setTimeout(() => {
         setIsExtractModalOpen(false);
         setExtractSuccess(null);
@@ -265,15 +389,10 @@ export default function GraphPage() {
     }
   };
 
-  // Enhanced Graph View Options: Root PRD node & Compact Mode
-  const [includeProjectRoot, setIncludeProjectRoot] = useState(true);
-  const [isCompact, setIsCompact] = useState(false);
-
   // Connect nodes via drag-and-drop
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      // In our graph layout: Left is prerequisite (`to`), Right is dependent (`from`)
       let res = connectNodes(connection.target, connection.source);
       if (!res.success) {
         const resAlt = connectNodes(connection.source, connection.target);
@@ -338,17 +457,17 @@ export default function GraphPage() {
     setIsAddModalOpen(false);
   };
 
-  // Layout nodes whenever store nodes/edges, root toggle, compact mode, or cascade change
+  // Layout nodes whenever visible nodes/edges, root toggle, compact mode, direction, or cascade change
   useEffect(() => {
-    const { flowNodes, flowEdges } = getLayoutedElements(storeNodes, storeEdges, {
-      direction: 'LR',
+    const { flowNodes, flowEdges } = getLayoutedElements(visibleNodes, visibleEdges, {
+      direction: layoutDirection,
       includeProjectRoot,
       projectName: project,
       isCompact
     });
 
     const styledEdges = flowEdges.map((edge) => {
-      const isRootEdge = edge.source === 'PRD_ROOT';
+      const isRootEdge = edge.id.startsWith('e-root-');
 
       if (isRootEdge) {
         const isTargetSelected = selectedNodeId && edge.target === selectedNodeId;
@@ -356,16 +475,16 @@ export default function GraphPage() {
           ...edge,
           animated: true,
           style: {
-            stroke: isTargetSelected ? '#f59e0b' : '#38bdf8',
-            strokeWidth: isTargetSelected ? 2.5 : 1.8,
+            stroke: isTargetSelected ? '#0070f3' : '#a3a3a3',
+            strokeWidth: isTargetSelected ? 2.5 : 1.5,
             strokeDasharray: '4 4',
             opacity: 0.8
           },
-          markerStart: {
+          markerEnd: {
             type: MarkerType.ArrowClosed,
             width: 10,
             height: 10,
-            color: isTargetSelected ? '#f59e0b' : '#38bdf8'
+            color: isTargetSelected ? '#0070f3' : '#a3a3a3'
           }
         };
       }
@@ -384,12 +503,12 @@ export default function GraphPage() {
         return {
           ...edge,
           animated: true,
-          style: { stroke: '#f43f5e', strokeWidth: 3 },
-          markerStart: {
+          style: { stroke: '#ee0000', strokeWidth: 2.5 },
+          markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: 14,
-            height: 14,
-            color: '#f43f5e'
+            width: 13,
+            height: 13,
+            color: '#ee0000'
           }
         };
       }
@@ -398,12 +517,12 @@ export default function GraphPage() {
         return {
           ...edge,
           animated: true,
-          style: { stroke: '#f59e0b', strokeWidth: 2.5 },
-          markerStart: {
+          style: { stroke: '#0070f3', strokeWidth: 2.2 },
+          markerEnd: {
             type: MarkerType.ArrowClosed,
-            width: 14,
-            height: 14,
-            color: '#f59e0b'
+            width: 13,
+            height: 13,
+            color: '#0070f3'
           }
         };
       }
@@ -413,15 +532,15 @@ export default function GraphPage() {
         ...edge,
         animated: false,
         style: {
-          stroke: '#94a3b8',
-          strokeWidth: 1.8,
-          opacity: isDimmed ? 0.3 : 0.85
+          stroke: isDimmed ? '#d4d4d4' : '#737373',
+          strokeWidth: 1.5,
+          opacity: isDimmed ? 0.35 : 0.85
         },
-        markerStart: {
+        markerEnd: {
           type: MarkerType.ArrowClosed,
-          width: 13,
-          height: 13,
-          color: isDimmed ? '#cbd5e1' : '#64748b'
+          width: 12,
+          height: 12,
+          color: isDimmed ? '#d4d4d4' : '#737373'
         }
       };
     });
@@ -429,12 +548,13 @@ export default function GraphPage() {
     setNodes(flowNodes);
     setEdges(styledEdges);
   }, [
-    storeNodes,
-    storeEdges,
+    visibleNodes,
+    visibleEdges,
     selectedNodeId,
     cascade,
     includeProjectRoot,
     isCompact,
+    layoutDirection,
     project,
     setNodes,
     setEdges
@@ -451,10 +571,11 @@ export default function GraphPage() {
     selectNode(null);
   }, [selectNode]);
 
-  // Demo shortcut: Refute first available assumption with one click
+  // Demo 1-click refute
   const handleDemoRefuteA1 = () => {
     const unverifiedAssumption = storeNodes.find(
-      (n): n is import('@/lib/types').AssumptionNode => n.type === 'assumption' && n.status === 'unverified'
+      (n): n is import('@/lib/types').AssumptionNode =>
+        n.type === 'assumption' && n.status === 'unverified'
     );
     const target =
       unverifiedAssumption ||
@@ -467,23 +588,30 @@ export default function GraphPage() {
     }
   };
 
+  const handleMergeSubmit = () => {
+    if (!selectedDuplicate) return;
+    mergeNodes(selectedDuplicate.primaryId, selectedDuplicate.duplicateId);
+    setIsMergeModalOpen(false);
+    setSelectedDuplicate(null);
+  };
+
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-      {/* Top Header */}
-      <header className="h-14 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 flex items-center justify-between z-20 flex-shrink-0">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#fafafa] dark:bg-[#000000] text-neutral-900 dark:text-neutral-100 font-sans">
+      {/* Top Header (Vercel Navigation Bar Style) */}
+      <header className="h-14 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#000000] px-5 flex items-center justify-between z-20 flex-shrink-0">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="flex items-center gap-2 hover:opacity-80 transition"
+            className="flex items-center gap-2.5 hover:opacity-85 transition"
           >
-            <div className="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow">
-              Δ
+            <div className="w-7 h-7 rounded-md bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-xs shadow-sm">
+              ▲
             </div>
             <div>
-              <h1 className="font-bold text-xs tracking-tight leading-tight">
+              <h1 className="font-bold text-xs tracking-tight leading-tight text-neutral-900 dark:text-neutral-100">
                 Assumption Debt
               </h1>
-              <p className="text-[10px] text-slate-500 font-mono">
+              <p className="text-[10px] text-neutral-500 font-mono truncate max-w-[180px]">
                 {project}
               </p>
             </div>
@@ -491,13 +619,13 @@ export default function GraphPage() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {/* Phase 7: Undo / Redo */}
-          <div className="flex items-center gap-1 border-r border-slate-200 dark:border-slate-800 pr-2 mr-1">
+          <div className="flex items-center gap-1 border-r border-neutral-200 dark:border-neutral-800 pr-2 mr-1">
             <button
               onClick={undo}
               disabled={!canUndo()}
-              className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 transition"
+              className="p-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed text-neutral-700 dark:text-neutral-300 transition"
               title="Hoàn tác thao tác đồ thị (Ctrl+Z)"
             >
               <Undo2 className="w-3.5 h-3.5" />
@@ -505,45 +633,64 @@ export default function GraphPage() {
             <button
               onClick={redo}
               disabled={!canRedo()}
-              className="p-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 dark:text-slate-300 transition"
+              className="p-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed text-neutral-700 dark:text-neutral-300 transition"
               title="Làm lại thao tác đồ thị (Ctrl+Y)"
             >
               <Redo2 className="w-3.5 h-3.5" />
             </button>
           </div>
 
+          {/* Phase 11: Toggle Filter Bar Button */}
+          <button
+            onClick={() => setShowFilterBar(!showFilterBar)}
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition ${
+              showFilterBar || activeFilterCount > 0
+                ? 'border-neutral-900 dark:border-neutral-100 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-sm'
+                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
+            }`}
+            title="Mở thanh bộ lọc tài liệu, trạng thái, và phân loại"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Bộ lọc</span>
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-[#0070f3] text-white text-[10px] flex items-center justify-center font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
+
           {/* Toggle Nối chung Nút Gốc PRD */}
           <button
             onClick={() => setIncludeProjectRoot(!includeProjectRoot)}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition ${
               includeProjectRoot
-                ? 'border-amber-500 bg-amber-500/15 text-amber-800 dark:text-amber-300'
-                : 'border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                ? 'border-neutral-900 dark:border-neutral-100 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-sm'
+                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
             }`}
             title="Nối chung các giả định về Nút Gốc PRD để không bị rời rạc"
           >
-            <Layers className="w-3.5 h-3.5 text-amber-500" />
-            <span>Nút Gốc PRD: {includeProjectRoot ? 'Bật' : 'Tắt'}</span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>Nút Gốc: {includeProjectRoot ? 'Bật' : 'Tắt'}</span>
           </button>
 
           {/* Toggle Chế độ Thu gọn / Chi tiết */}
           <button
             onClick={() => setIsCompact(!isCompact)}
-            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+            className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border transition ${
               isCompact
-                ? 'border-indigo-500 bg-indigo-500/15 text-indigo-800 dark:text-indigo-300'
-                : 'border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                ? 'border-neutral-900 dark:border-neutral-100 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-sm'
+                : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
             }`}
             title="Thu gọn thẻ để vừa màn hình, không bị tràn khi zoom"
           >
-            <Maximize2 className="w-3.5 h-3.5 text-indigo-500" />
+            <Maximize2 className="w-3.5 h-3.5" />
             <span>{isCompact ? 'Thu gọn' : 'Chi tiết'}</span>
           </button>
 
           {/* Quick Demo Button for Refuting A1 */}
           <button
             onClick={handleDemoRefuteA1}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-[#ee0000] hover:bg-[#c50000] text-white shadow-sm transition"
             title="Thực hiện nhanh bước demo: Bác bỏ giả định đầu tiên để kích hoạt hiệu ứng sụp đổ dây chuyền (Cascade)"
           >
             <Zap className="w-3.5 h-3.5 fill-current" />
@@ -553,7 +700,7 @@ export default function GraphPage() {
           {/* Phase 10: Report & JSON Export/Import */}
           <button
             onClick={handleOpenReportModal}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
             title="Xem và xuất Báo cáo nợ giả định định dạng Markdown hoặc In"
           >
             <FileText className="w-3.5 h-3.5 text-emerald-500" />
@@ -562,23 +709,23 @@ export default function GraphPage() {
 
           <button
             onClick={handleExportJSON}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
             title="Xuất toàn bộ đồ thị và task thành file JSON có schemaVersion"
           >
-            <Download className="w-3.5 h-3.5 text-blue-500" />
+            <Download className="w-3.5 h-3.5 text-neutral-500" />
             <span>Xuất JSON</span>
           </button>
 
           <label
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition cursor-pointer"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
             title="Nhập đồ thị từ file JSON đã lưu"
           >
-            <Upload className="w-3.5 h-3.5 text-indigo-500" />
+            <Upload className="w-3.5 h-3.5 text-neutral-500" />
             <span>Nhập JSON</span>
             <input
               type="file"
               accept=".json"
-              onChange={handleImportJSONFile}
+              onChange={handleImportJSON}
               className="hidden"
             />
           </label>
@@ -586,7 +733,7 @@ export default function GraphPage() {
           {/* Phase 7: Add Manual Node Button */}
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
             title="Thêm giả định, quyết định hoặc công việc thủ công vào đồ thị"
           >
             <Plus className="w-3.5 h-3.5 text-amber-500" />
@@ -595,16 +742,17 @@ export default function GraphPage() {
 
           <button
             onClick={resetToInitial}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 transition"
             title="Khôi phục lại dữ liệu mẫu ban đầu"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset Demo</span>
           </button>
 
+          {/* Primary Action Button (Vercel Style) */}
           <button
             onClick={() => setIsExtractModalOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 transition shadow-sm"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-md bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition shadow-sm"
             title="Dán văn bản PRD/ADR để AI trích xuất giả định, quyết định, công việc và vẽ lại đồ thị"
           >
             <Sparkles className="w-3.5 h-3.5 fill-current" />
@@ -612,6 +760,148 @@ export default function GraphPage() {
           </button>
         </div>
       </header>
+
+      {/* Phase 11: Expandable Vercel Smart Filter Bar */}
+      {showFilterBar && (
+        <div className="border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a] px-5 py-2.5 z-20 flex flex-wrap items-center justify-between gap-3 text-xs animate-in slide-in-from-top duration-150">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Filter by Document */}
+            {availableDocs.length > 0 && (
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] text-neutral-500 font-mono">Tài liệu:</span>
+                <select
+                  value={filterDoc}
+                  onChange={(e) => setFilterDoc(e.target.value)}
+                  className="text-xs py-1 px-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200"
+                >
+                  <option value="all">Tất cả tài liệu ({availableDocs.length})</option>
+                  {availableDocs.map((doc) => (
+                    <option key={doc} value={doc}>
+                      {doc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Filter by Node Types (Toggle Pills) */}
+            <div className="flex items-center gap-1 border-l border-neutral-200 dark:border-neutral-800 pl-2">
+              <button
+                onClick={() => setFilterShowAssumptions(!filterShowAssumptions)}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition border ${
+                  filterShowAssumptions
+                    ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold'
+                    : 'bg-transparent text-neutral-400 border-transparent hover:border-neutral-200'
+                }`}
+              >
+                Giả định ({storeNodes.filter((n) => n.type === 'assumption').length})
+              </button>
+              <button
+                onClick={() => setFilterShowDecisions(!filterShowDecisions)}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition border ${
+                  filterShowDecisions
+                    ? 'bg-[#0070f3]/10 text-[#0070f3] border-[#0070f3]/30 font-semibold'
+                    : 'bg-transparent text-neutral-400 border-transparent hover:border-neutral-200'
+                }`}
+              >
+                Quyết định ({storeNodes.filter((n) => n.type === 'decision').length})
+              </button>
+              <button
+                onClick={() => setFilterShowTasks(!filterShowTasks)}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition border ${
+                  filterShowTasks
+                    ? 'bg-[#7928ca]/10 text-[#7928ca] border-[#7928ca]/30 font-semibold'
+                    : 'bg-transparent text-neutral-400 border-transparent hover:border-neutral-200'
+                }`}
+              >
+                Task ({storeNodes.filter((n) => n.type === 'task').length})
+              </button>
+            </div>
+
+            {/* Filter by Status */}
+            <div className="flex items-center gap-1 border-l border-neutral-200 dark:border-neutral-800 pl-2">
+              <span className="text-[11px] text-neutral-500 font-mono">Trạng thái:</span>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="text-xs py-1 px-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                <option value="unverified">Chưa kiểm chứng</option>
+                <option value="validated">Đã xác thực</option>
+                <option value="refuted">Bị bác bỏ</option>
+                <option value="needs_review">Cần xem lại ({needsReviewIds.size})</option>
+              </select>
+            </div>
+
+            {/* Filter by Category */}
+            <div className="flex items-center gap-1 border-l border-neutral-200 dark:border-neutral-800 pl-2">
+              <span className="text-[11px] text-neutral-500 font-mono">Phân loại:</span>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="text-xs py-1 px-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200"
+              >
+                <option value="all">Tất cả phân loại</option>
+                <option value="user_behavior">Hành vi người dùng</option>
+                <option value="technical_dependency">Phụ thuộc kỹ thuật</option>
+                <option value="market">Thị trường / Kinh doanh</option>
+                <option value="data">Dữ liệu</option>
+                <option value="legal">Pháp lý / Tuân thủ</option>
+              </select>
+            </div>
+
+            {/* Focus Mode */}
+            <button
+              onClick={() => setFocusMode(!focusMode)}
+              disabled={!selectedNodeId}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border transition ${
+                focusMode && selectedNodeId
+                  ? 'bg-black text-white dark:bg-white dark:text-black border-transparent shadow-sm'
+                  : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed'
+              }`}
+              title={selectedNodeId ? 'Chỉ hiển thị nhánh phụ thuộc của nút đang chọn' : 'Chọn một nút để bật chế độ tiêu điểm'}
+            >
+              <Target className="w-3 h-3" />
+              <span>Tiêu điểm {selectedNodeId ? `(${selectedNodeId})` : ''}</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Duplicate Assumptions Merge Alert */}
+            {duplicateCandidates.length > 0 && (
+              <button
+                onClick={() => {
+                  setSelectedDuplicate(duplicateCandidates[0]);
+                  setIsMergeModalOpen(true);
+                }}
+                className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition"
+              >
+                <GitMerge className="w-3 h-3 text-amber-500" />
+                <span>Phát hiện {duplicateCandidates.length} giả định trùng</span>
+              </button>
+            )}
+
+            {/* Reset Filter Button */}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={() => {
+                  setFilterDoc('all');
+                  setFilterShowAssumptions(true);
+                  setFilterShowDecisions(true);
+                  setFilterShowTasks(true);
+                  setFilterStatus('all');
+                  setFilterCategory('all');
+                  setFocusMode(false);
+                }}
+                className="text-[11px] text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
+              >
+                Xóa bộ lọc
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Import Notification Banner */}
       {importNotification && (
@@ -642,13 +932,19 @@ export default function GraphPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => commitReviewToGraph(true)}
-              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shadow-sm transition"
+              className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold shadow-sm transition"
             >
               Nạp ngay vào Đồ thị (Thay thế cũ)
             </button>
+            <button
+              onClick={() => commitReviewToGraph(false)}
+              className="px-3 py-1 rounded-md bg-black text-white dark:bg-white dark:text-black font-semibold shadow-sm transition"
+            >
+              Gộp thêm vào Đồ thị
+            </button>
             <Link
               href="/review"
-              className="px-3 py-1 rounded-lg border border-amber-500/40 hover:bg-amber-500/20 text-amber-900 dark:text-amber-100 font-semibold transition"
+              className="px-3 py-1 rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-medium transition"
             >
               Xem Hòm thư duyệt
             </Link>
@@ -693,7 +989,7 @@ export default function GraphPage() {
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={{ padding: 0.15, maxZoom: 1.0, minZoom: 0.4 }}
-            minZoom={0.25}
+            minZoom={0.2}
             maxZoom={2.0}
             proOptions={{ hideAttribution: true }}
           >
@@ -701,80 +997,195 @@ export default function GraphPage() {
               variant={BackgroundVariant.Dots}
               gap={16}
               size={1}
-              color="#94a3b8"
-              className="opacity-40"
+              color="#a3a3a3"
+              className="opacity-25"
             />
-            <Controls
-              position="bottom-right"
-              className="!bg-white dark:!bg-slate-900 !border-slate-200 dark:!border-slate-800 !rounded-xl !shadow-lg mb-2 mr-2"
-            />
-            <MiniMap
-              className="!bg-white/80 dark:!bg-slate-900/80 !border-slate-200 dark:!border-slate-800 !rounded-xl hidden md:block"
-              nodeStrokeColor="#94a3b8"
-              nodeColor={(n) => {
-                if (n.type === 'document') return '#8b5cf6';
-                if (n.type === 'assumption') return '#f59e0b';
-                if (n.type === 'decision') return '#3b82f6';
-                return '#6366f1';
-              }}
-            />
+
+            {/* Vercel Clean MiniMap */}
+            {showMiniMap && (
+              <MiniMap
+                className="!bg-white/90 dark:!bg-[#0a0a0a]/90 !border !border-neutral-200 dark:!border-neutral-800 !rounded-lg !shadow-sm hidden md:block !mb-16 !mr-3"
+                nodeStrokeColor="#737373"
+                nodeColor={(n) => {
+                  if (n.type === 'document') return '#171717';
+                  if (n.type === 'assumption') return '#f5a623';
+                  if (n.type === 'decision') return '#0070f3';
+                  return '#7928ca';
+                }}
+              />
+            )}
           </ReactFlow>
 
-          {/* Quick Legend at bottom-left */}
-          <div className="absolute bottom-4 left-4 z-10 p-2.5 px-3.5 rounded-xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-lg text-[11px] flex items-center gap-3.5">
+          {/* Vercel Sleek Floating Canvas Toolbar (Bottom-Right) */}
+          <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 p-1 bg-white dark:bg-[#0a0a0a] border border-neutral-200 dark:border-neutral-800 rounded-md shadow-sm">
+            <button
+              onClick={() => zoomIn({ duration: 300 })}
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 transition"
+              title="Phóng to (+)"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => zoomOut({ duration: 300 })}
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 transition"
+              title="Thu nhỏ (-)"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => fitView({ duration: 400, padding: 0.15 })}
+              className="p-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300 transition"
+              title="Vừa màn hình (Fit View)"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+            <div className="w-[1px] h-4 bg-neutral-200 dark:bg-neutral-800 mx-0.5" />
+            <button
+              onClick={() => setLayoutDirection(layoutDirection === 'LR' ? 'TB' : 'LR')}
+              className={`p-1.5 rounded transition ${
+                layoutDirection === 'TB'
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-black'
+                  : 'hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300'
+              }`}
+              title={`Đổi hướng đồ thị: Hiện tại là ${layoutDirection === 'LR' ? 'Trái -> Phải' : 'Trên -> Dưới'}`}
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setShowMiniMap(!showMiniMap)}
+              className={`p-1.5 rounded transition ${
+                showMiniMap
+                  ? 'bg-neutral-900 text-white dark:bg-white dark:text-black'
+                  : 'hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-700 dark:text-neutral-300'
+              }`}
+              title="Bật / Tắt Bản đồ thu nhỏ (MiniMap)"
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Vercel Pill Legend (Bottom-Left, completely separated from controls) */}
+          <div className="absolute bottom-4 left-4 z-10 px-3 py-1.5 rounded-full bg-white/90 dark:bg-[#0a0a0a]/90 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-sm text-[11px] flex items-center gap-3">
             {includeProjectRoot && (
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded bg-gradient-to-r from-amber-500 to-indigo-600 shadow-sm" />
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Nguồn (PRD)</span>
+                <span className="w-2 h-2 rounded bg-black dark:bg-white" />
+                <span className="font-medium text-neutral-700 dark:text-neutral-300">Tài liệu Gốc</span>
               </div>
             )}
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full border-2 border-dashed border-amber-500 bg-amber-100 dark:bg-amber-950" />
-              <span>Giả định</span>
+              <span className="w-2 h-2 rounded-full bg-[#f5a623]" />
+              <span className="text-neutral-600 dark:text-neutral-400">Giả định</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded border border-blue-500 bg-blue-100 dark:bg-blue-950" />
-              <span>Quyết định</span>
+              <span className="w-2 h-2 rounded bg-[#0070f3]" />
+              <span className="text-neutral-600 dark:text-neutral-400">Quyết định</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded border border-indigo-500 bg-indigo-100 dark:bg-indigo-950" />
-              <span>Công việc</span>
+              <span className="w-2 h-2 rounded bg-[#7928ca]" />
+              <span className="text-neutral-600 dark:text-neutral-400">Công việc</span>
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* Modal: Thêm Nút Thủ Công (Phase 7) */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Plus className="w-4 h-4 text-amber-500" />
-                <span>Thêm nút mới vào đồ thị</span>
-              </h2>
+      {/* Modal: Gộp Giả Định Trùng Lặp (Phase 11) */}
+      {isMergeModalOpen && selectedDuplicate && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0a0a0a] border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 max-w-lg w-full shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                  <GitMerge className="w-4 h-4" />
+                </div>
+                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  Gộp Giả Định Trùng Lặp
+                </h2>
+              </div>
               <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+                onClick={() => setIsMergeModalOpen(false)}
+                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateNode} className="space-y-4">
+            <p className="text-xs text-neutral-500 mb-4">
+              Hệ thống phát hiện 2 giả định có độ tương đồng <strong>{Math.round(selectedDuplicate.similarity * 100)}%</strong>. Bạn có thể gộp chúng lại làm một nút để tối ưu đồ thị phụ thuộc:
+            </p>
+
+            <div className="space-y-3 mb-5">
+              <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-black text-white dark:bg-white dark:text-black">
+                    Giữ lại: {selectedDuplicate.primaryId}
+                  </span>
+                  <span className="text-[10px] text-emerald-600 font-medium">Nút chính</span>
+                </div>
+                <p className="text-xs text-neutral-800 dark:text-neutral-200">{selectedDuplicate.primaryText}</p>
+              </div>
+
+              <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200">
+                    Sẽ gộp vào: {selectedDuplicate.duplicateId}
+                  </span>
+                  <span className="text-[10px] text-rose-500 font-medium">Sẽ xóa nút thừa</span>
+                </div>
+                <p className="text-xs text-neutral-800 dark:text-neutral-200">{selectedDuplicate.duplicateText}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsMergeModalOpen(false)}
+                className="px-3 py-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-md transition"
+              >
+                Bỏ qua
+              </button>
+              <button
+                type="button"
+                onClick={handleMergeSubmit}
+                className="px-4 py-1.5 text-xs font-semibold bg-black text-white dark:bg-white dark:text-black rounded-md hover:opacity-90 transition shadow-sm flex items-center gap-1.5"
+              >
+                <GitMerge className="w-3.5 h-3.5" />
+                <span>Xác nhận Gộp Nút</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Thêm Nút Thủ Công (Phase 7) */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0a0a0a] border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 max-w-md w-full shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-amber-500" />
+                <span>Thêm nút mới vào đồ thị</span>
+              </h2>
+              <button
+                onClick={() => setIsAddModalOpen(false)}
+                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateNode} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Loại phần tử:
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
+                  Loại nút:
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setAddType('assumption')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-semibold transition ${
+                    className={`py-1.5 text-xs font-medium rounded-md border transition ${
                       addType === 'assumption'
-                        ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500'
-                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        ? 'border-black dark:border-white bg-black dark:bg-white text-white dark:text-black font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900'
                     }`}
                   >
                     Giả định
@@ -782,10 +1193,10 @@ export default function GraphPage() {
                   <button
                     type="button"
                     onClick={() => setAddType('decision')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-semibold transition ${
+                    className={`py-1.5 text-xs font-medium rounded-md border transition ${
                       addType === 'decision'
-                        ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500'
-                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        ? 'border-black dark:border-white bg-black dark:bg-white text-white dark:text-black font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900'
                     }`}
                   >
                     Quyết định
@@ -793,10 +1204,10 @@ export default function GraphPage() {
                   <button
                     type="button"
                     onClick={() => setAddType('task')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-semibold transition ${
+                    className={`py-1.5 text-xs font-medium rounded-md border transition ${
                       addType === 'task'
-                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 ring-1 ring-indigo-500'
-                        : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        ? 'border-black dark:border-white bg-black dark:bg-white text-white dark:text-black font-semibold'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900'
                     }`}
                   >
                     Công việc
@@ -805,28 +1216,22 @@ export default function GraphPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Nội dung:
                 </label>
                 <textarea
                   rows={3}
                   value={addText}
                   onChange={(e) => setAddText(e.target.value)}
-                  placeholder={
-                    addType === 'assumption'
-                      ? 'Ví dụ: Khách hàng sẵn sàng xác nhận số CCCD với bot...'
-                      : addType === 'decision'
-                      ? 'Ví dụ: Dùng kiến trúc Event Sourcing...'
-                      : 'Ví dụ: Tích hợp API đối soát trong Sprint 2...'
-                  }
-                  className="w-full text-xs p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="Nhập nội dung giả định, quyết định hoặc công việc..."
+                  className="w-full text-xs p-2.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                  <label className="block text-[11px] text-neutral-500 mb-1">
                     Người phụ trách:
                   </label>
                   <input
@@ -834,19 +1239,19 @@ export default function GraphPage() {
                     value={addOwner}
                     onChange={(e) => setAddOwner(e.target.value)}
                     placeholder="VD: Tech Lead"
-                    className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+                    className="w-full text-xs p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
                   />
                 </div>
 
                 {addType === 'assumption' ? (
                   <div>
-                    <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                    <label className="block text-[11px] text-neutral-500 mb-1">
                       Tầm quan trọng (1-5):
                     </label>
                     <select
                       value={addImportance}
                       onChange={(e) => setAddImportance(Number(e.target.value))}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+                      className="w-full text-xs p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
                     >
                       <option value={1}>1 - Thấp</option>
                       <option value={2}>2 - Vừa</option>
@@ -857,7 +1262,7 @@ export default function GraphPage() {
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                    <label className="block text-[11px] text-neutral-500 mb-1">
                       Thời gian (tuần):
                     </label>
                     <input
@@ -866,23 +1271,23 @@ export default function GraphPage() {
                       min="0.5"
                       value={addEffortWeeks}
                       onChange={(e) => setAddEffortWeeks(Number(e.target.value))}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950"
+                      className="w-full text-xs p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
                     />
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-900">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+                  className="px-3 py-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl transition shadow"
+                  className="px-4 py-1.5 text-xs font-semibold bg-black text-white dark:bg-white dark:text-black rounded-md hover:opacity-90 transition shadow-sm"
                 >
                   Tạo Nút
                 </button>
@@ -892,27 +1297,27 @@ export default function GraphPage() {
         </div>
       )}
 
-      {/* Modal: Dán PRD & Tạo đồ thị AI mới */}
+      {/* Modal: Dán PRD & Tạo đồ thị AI mới (kèm Multi-document Mode) */}
       {isExtractModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 max-w-2xl w-full shadow-2xl animate-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-[#0a0a0a] border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 max-w-2xl w-full shadow-2xl animate-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between mb-3 flex-shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
+                <div className="w-7 h-7 rounded-md bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-xs">
+                  ▲
                 </div>
                 <div>
-                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
-                    Dán PRD & Tạo Đồ thị Bằng AI
+                  <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                    Trích xuất Giả định & Dựng Đồ thị AI
                   </h2>
-                  <p className="text-xs text-slate-500">
-                    AI tự động trích xuất Giả định, Quyết định, Công việc và dựng Cây Phụ thuộc
+                  <p className="text-[11px] text-neutral-500">
+                    Phân tích tài liệu PRD/ADR, liên kết quyết định và tính nợ giả định
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsExtractModalOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -920,38 +1325,84 @@ export default function GraphPage() {
 
             {/* Error or Success notification */}
             {extractError && (
-              <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 flex-shrink-0">
+              <div className="mb-3 p-2.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2 flex-shrink-0">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{extractError}</span>
               </div>
             )}
             {extractSuccess && (
-              <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 flex-shrink-0">
+              <div className="mb-3 p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 flex-shrink-0">
                 <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                 <span>{extractSuccess}</span>
               </div>
             )}
 
-            <form onSubmit={handleRunExtract} className="space-y-4 overflow-y-auto pr-1 flex-1">
+            <form onSubmit={handleRunExtract} className="space-y-3.5 overflow-y-auto pr-1 flex-1">
+              {/* Phase 11: Document Mode (Replace vs Append / Multi-document) */}
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Chế độ xử lý tài liệu:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExtractMode('replace')}
+                    className={`py-2 px-3 rounded-md text-left border transition ${
+                      extractMode === 'replace'
+                        ? 'border-black dark:border-white bg-black/5 dark:bg-white/5 font-semibold text-neutral-900 dark:text-neutral-100'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300'
+                    }`}
+                  >
+                    <div className="text-xs">🔄 Tạo đồ thị mới (Thay thế)</div>
+                    <div className="text-[10px] text-neutral-500">Xóa đồ thị hiện tại và tạo lại từ đầu</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtractMode('append')}
+                    className={`py-2 px-3 rounded-md text-left border transition ${
+                      extractMode === 'append'
+                        ? 'border-black dark:border-white bg-black/5 dark:bg-white/5 font-semibold text-neutral-900 dark:text-neutral-100'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:border-neutral-300'
+                    }`}
+                  >
+                    <div className="text-xs">📚 Gộp thêm vào đồ thị (Nhiều tài liệu)</div>
+                    <div className="text-[10px] text-neutral-500">Giữ nguyên đồ thị cũ và kết nối thêm tài liệu mới</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Document Title input */}
+              <div>
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Tên tài liệu / Tiêu đề:
+                </label>
+                <input
+                  type="text"
+                  value={extractDocTitle}
+                  onChange={(e) => setExtractDocTitle(e.target.value)}
+                  placeholder="Ví dụ: PRD Thu ngân, ADR-002: Cổng thanh toán..."
+                  className="w-full text-xs p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+                />
+              </div>
+
               {/* Preset Document Buttons */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Chọn nhanh tài liệu mẫu hoặc tự dán:
+                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                  Chọn nhanh tài liệu mẫu:
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {SAMPLE_DOCS.map((doc) => (
                     <button
                       key={doc.id}
                       type="button"
                       onClick={() => handleSelectPreset(doc.id)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition flex items-center gap-1.5 ${
+                      className={`text-[11px] px-2.5 py-1 rounded-md border transition ${
                         selectedPresetId === doc.id
-                          ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold'
-                          : 'border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          ? 'border-black dark:border-white bg-black text-white dark:bg-white dark:text-black font-semibold'
+                          : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-900'
                       }`}
                     >
-                      <BookOpen className="w-3.5 h-3.5" />
-                      <span>{doc.title.split(':')[1]?.split('(')[0]?.trim() || doc.title}</span>
+                      {doc.title.split(':')[1]?.split('(')[0]?.trim() || doc.title}
                     </button>
                   ))}
                 </div>
@@ -960,75 +1411,65 @@ export default function GraphPage() {
               {/* Textarea for document */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <label className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
                     Nội dung văn bản (Markdown / Text):
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[10px] text-neutral-400 font-mono">
                     {extractDocText.length} ký tự
                   </span>
                 </div>
                 <textarea
-                  rows={7}
+                  rows={6}
                   value={extractDocText}
                   onChange={(e) => {
                     setExtractDocText(e.target.value);
                     setSelectedPresetId('');
                   }}
                   placeholder="Dán nội dung PRD, ADR, Spec dự án vào đây..."
-                  className="w-full text-xs font-mono p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-500 leading-relaxed"
+                  className="w-full text-xs font-mono p-2.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white leading-relaxed"
                   required
                 />
               </div>
 
-              {/* Mode Selection: AI vs Mockup */}
-              <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+              {/* AI vs Mockup Toggle */}
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setExtractUseAi(true)}
-                  className={`p-3 rounded-xl border text-left transition ${
+                  className={`p-2.5 rounded-md border text-left transition ${
                     extractUseAi
-                      ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500'
-                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      ? 'border-black dark:border-white bg-black/5 dark:bg-white/5 font-semibold text-neutral-900 dark:text-neutral-100'
+                      : 'border-neutral-200 dark:border-neutral-800 text-neutral-500'
                   }`}
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                      ✨ Chế độ AI Thật
-                    </span>
+                  <div className="text-xs font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Chế độ AI Thật
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    Gọi Gemini / Claude / GPT phân tích trực tiếp văn bản, tính toán rủi ro và dựng toàn bộ đồ thị.
-                  </p>
+                  <div className="text-[10px] text-neutral-500 mt-0.5">Gọi Gemini / Claude phân tích văn bản thực tế</div>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setExtractUseAi(false)}
-                  className={`p-3 rounded-xl border text-left transition ${
+                  className={`p-2.5 rounded-md border text-left transition ${
                     !extractUseAi
-                      ? 'border-indigo-500 bg-indigo-500/10 ring-1 ring-indigo-500'
-                      : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+                      ? 'border-black dark:border-white bg-black/5 dark:bg-white/5 font-semibold text-neutral-900 dark:text-neutral-100'
+                      : 'border-neutral-200 dark:border-neutral-800 text-neutral-500'
                   }`}
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Layers className="w-4 h-4 text-indigo-500" />
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                      📦 Mockup Offline
-                    </span>
+                  <div className="text-xs font-medium flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5" /> Mockup Offline
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-relaxed">
-                    Dùng dữ liệu mẫu Instant Merchant Advance có sẵn để test nhanh đồ thị mà không cần API key.
-                  </p>
+                  <div className="text-[10px] text-neutral-500 mt-0.5">Dùng dữ liệu cache sẵn sàng trình chiếu</div>
                 </button>
               </div>
 
-              {/* AI Provider & API Key Configuration if AI Mode */}
+              {/* AI Configuration */}
               {extractUseAi && (
-                <div className="space-y-3 p-3.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-md bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2.5">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      <label className="block text-[11px] text-neutral-500 mb-1">
                         Nhà cung cấp LLM:
                       </label>
                       <select
@@ -1038,7 +1479,7 @@ export default function GraphPage() {
                           setExtractProvider(p);
                           setExtractModel(PROVIDER_CONFIGS[p].defaultModel);
                         }}
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                        className="w-full text-xs p-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100"
                       >
                         <option value="gemini">Google Gemini (Khuyên dùng: 2.5 Flash)</option>
                         <option value="anthropic">Anthropic Claude (3.5 Sonnet)</option>
@@ -1047,13 +1488,13 @@ export default function GraphPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      <label className="block text-[11px] text-neutral-500 mb-1">
                         Mô hình:
                       </label>
                       <select
                         value={extractModel}
                         onChange={(e) => setExtractModel(e.target.value)}
-                        className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                        className="w-full text-xs p-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100"
                       >
                         {PROVIDER_CONFIGS[extractProvider].availableModels.map((m) => (
                           <option key={m} value={m}>
@@ -1065,32 +1506,26 @@ export default function GraphPage() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center justify-between">
-                      <span className="flex items-center gap-1">
-                        <Key className="w-3.5 h-3.5 text-amber-500" />
-                        <span>API Key ({PROVIDER_CONFIGS[extractProvider].name}):</span>
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-normal">
-                        (Tự động lưu vào trình duyệt của bạn)
-                      </span>
+                    <label className="block text-[11px] text-neutral-500 mb-1">
+                      API Key ({PROVIDER_CONFIGS[extractProvider].name}):
                     </label>
                     <input
                       type="password"
                       value={extractApiKey}
                       onChange={(e) => setExtractApiKey(e.target.value)}
                       placeholder={`Nhập ${PROVIDER_CONFIGS[extractProvider].name} API Key... (hoặc để trống nếu đã cấu hình trong .env.local)`}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
+                      className="w-full text-xs p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 font-mono"
                     />
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+              <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-900 flex-shrink-0">
                 <Link
                   href="/review"
                   onClick={() => setIsExtractModalOpen(false)}
-                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-1"
+                  className="text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center gap-1"
                 >
                   <span>Chuyển sang Hòm thư duyệt chi tiết</span>
                   <ArrowRight className="w-3 h-3" />
@@ -1100,26 +1535,25 @@ export default function GraphPage() {
                   <button
                     type="button"
                     onClick={() => setIsExtractModalOpen(false)}
-                    disabled={isExtracting}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition"
+                    className="px-3 py-1.5 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-md transition"
                   >
-                    Hủy
+                    Đóng
                   </button>
 
                   <button
                     type="submit"
                     disabled={isExtracting}
-                    className="px-5 py-2.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded-xl transition shadow flex items-center gap-2"
+                    className="px-4 py-1.5 text-xs font-semibold bg-black text-white dark:bg-white dark:text-black rounded-md hover:opacity-90 disabled:opacity-50 transition shadow-sm flex items-center gap-1.5"
                   >
                     {isExtracting ? (
                       <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>AI Đang Phân Tích & Dựng Cây...</span>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang phân tích...</span>
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 fill-current" />
-                        <span>Tạo Đồ Thị Ngay</span>
+                        <Sparkles className="w-3.5 h-3.5 fill-current" />
+                        <span>{extractMode === 'replace' ? 'Dựng Đồ Thị Mới' : 'Gộp Vào Đồ Thị'}</span>
                       </>
                     )}
                   </button>
@@ -1130,77 +1564,57 @@ export default function GraphPage() {
         </div>
       )}
 
-      {/* Phase 10: Assumption Debt Report Modal */}
+      {/* Modal: Báo Cáo Nợ Giả Định (Phase 10) */}
       {isReportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between flex-shrink-0 bg-slate-50/70 dark:bg-slate-950/40">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                    <span>Báo Cáo Nợ Giả Định (Assumption Debt Report)</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
-                      Ước tính
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 font-mono">Dự án: {project}</p>
-                </div>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#0a0a0a] border border-neutral-200 dark:border-neutral-800 rounded-xl p-5 max-w-2xl w-full shadow-2xl animate-in zoom-in-95 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between mb-3 pb-2 border-b border-neutral-100 dark:border-neutral-900 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-emerald-500" />
+                <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  Báo Cáo Nợ Giả Định (Executive Risk Report)
+                </h2>
               </div>
+              <button
+                onClick={() => setIsReportModalOpen(false)}
+                className="p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-900 text-neutral-400"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              {/* Action buttons: Copy & Download */}
+            <div className="flex-1 overflow-y-auto mb-4 bg-neutral-50 dark:bg-neutral-900/60 p-4 rounded-md border border-neutral-200 dark:border-neutral-800 font-mono text-xs text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap leading-relaxed select-text">
+              {reportMarkdown}
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-neutral-900 flex-shrink-0">
+              <span className="text-[11px] text-neutral-400">
+                Định dạng chuẩn Markdown · Có thể copy sang Notion, Slack, Email
+              </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopyReport}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold flex items-center gap-1.5 transition text-slate-700 dark:text-slate-300"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-black text-white dark:bg-white dark:text-black font-semibold text-xs hover:opacity-90 transition shadow-sm"
                 >
-                  {reportCopied ? (
+                  {copyReportSuccess ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                      <span className="text-emerald-600 dark:text-emerald-400">Đã sao chép!</span>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Đã chép Markdown!</span>
                     </>
                   ) : (
                     <>
                       <Copy className="w-3.5 h-3.5" />
-                      <span>Sao chép Markdown</span>
+                      <span>Sao chép Báo cáo</span>
                     </>
                   )}
                 </button>
-
-                <button
-                  onClick={handleDownloadReport}
-                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Tải file .md</span>
-                </button>
-
                 <button
                   onClick={() => setIsReportModalOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 transition ml-1"
+                  className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 text-xs font-medium hover:bg-neutral-100 dark:hover:bg-neutral-900 transition"
                 >
-                  <X className="w-4 h-4" />
+                  Đóng
                 </button>
               </div>
-            </div>
-
-            {/* Markdown Preview Area */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950/20 font-mono text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap select-text">
-              {reportMarkdown}
-            </div>
-
-            {/* Footer */}
-            <div className="px-6 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Được định dạng theo chuẩn GitHub Flavored Markdown (GFM), sẵn sàng dán vào Jira, Confluence, GitHub PR hoặc xuất bản in.</span>
-              <button
-                onClick={() => setIsReportModalOpen(false)}
-                className="px-3 py-1 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-800 text-xs font-semibold"
-              >
-                Đóng
-              </button>
             </div>
           </div>
         </div>
@@ -1209,3 +1623,10 @@ export default function GraphPage() {
   );
 }
 
+export default function GraphPage() {
+  return (
+    <ReactFlowProvider>
+      <GraphInner />
+    </ReactFlowProvider>
+  );
+}

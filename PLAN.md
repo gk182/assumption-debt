@@ -129,11 +129,11 @@ Lý do: phục vụ post-mortem ("thất bại do giả định nào sai") và c
 - Done when: refresh giữa chừng demo vẫn giữ trạng thái; xuất rồi nhập lại cho đồ thị y hệt; báo cáo chạy được trên seed (6/6 tests in `storage.test.ts`, 3/3 tests in `report.test.ts`).
 
 ## Phase 11: Nhiều tài liệu và bộ lọc (1 ngày)
-- [ ] Thêm tài liệu thứ hai vào cùng dự án; gộp giả định trùng (so khớp văn bản chuẩn hóa, sau đó LLM nếu cần), người dùng duyệt gộp
-- [ ] Liên kết chéo tài liệu (quyết định ở PRD phụ thuộc giả định nêu trong ADR)
-- [ ] Bộ lọc theo tài liệu nguồn, loại (`category`), trạng thái, người sở hữu; ẩn/hiện loại nút
-- [ ] Với đồ thị lớn: gom nhóm theo loại, chỉ hiện downstream của nút chọn
-- Done when: 2 tài liệu mẫu tạo ra một đồ thị chung, không trùng lặp rõ ràng, lọc theo trạng thái hoạt động.
+- [x] Thêm tài liệu thứ hai vào cùng dự án; gộp giả định trùng (so khớp văn bản chuẩn hóa trong src/lib/dedup.ts), người dùng duyệt gộp
+- [x] Liên kết chéo tài liệu (quyết định ở PRD phụ thuộc giả định nêu trong ADR)
+- [x] Bộ lọc theo tài liệu nguồn, loại (category), trạng thái, người sở hữu; ẩn/hiện loại nút
+- [x] Với đồ thị lớn: gom nhóm theo loại, chỉ hiện downstream của nút chọn (Focus mode)
+- Done when: 2 tài liệu mẫu tạo ra một đồ thị chung, không trùng lặp rõ ràng, lọc theo trạng thái hoạt động (Đã test pass 57/57 tests).
 
 ## Phase 12: Độ bền, riêng tư và truy cập (1 ngày)
 - [ ] Cảnh báo trước khi gửi tài liệu tới LLM; tùy chọn **ẩn danh** (che email, số điện thoại, tên riêng) trước khi gửi

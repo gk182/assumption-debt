@@ -20,55 +20,55 @@ export const DecisionNodeComponent = memo(({ id, data, selected }: NodeProps) =>
 
   return (
     <div
-      className={`relative w-[260px] rounded-xl p-3 shadow-sm border-2 transition-all duration-200 ${
+      className={`relative w-[260px] rounded-xl p-3 border transition-all duration-200 ${
         needsReview
-          ? 'border-rose-500 bg-rose-50/90 dark:bg-rose-950/40 text-rose-900 dark:text-rose-100 ring-2 ring-rose-400 animate-pulse'
-          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100'
+          ? 'border-rose-500 bg-rose-50/50 dark:bg-rose-950/20 text-neutral-900 dark:text-neutral-100 ring-2 ring-rose-500 animate-pulse'
+          : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a] text-neutral-900 dark:text-neutral-100'
       } ${
         isSelected
-          ? 'ring-2 ring-blue-500 ring-offset-2 shadow-md'
-          : 'hover:shadow-md'
+          ? 'ring-2 ring-black dark:ring-white shadow-md'
+          : 'shadow-sm hover:border-neutral-400 dark:hover:border-neutral-600 hover:shadow-md'
       }`}
     >
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white dark:!border-slate-900 !rounded-full shadow-sm hover:scale-125 transition-transform"
+        className="!w-2.5 !h-2.5 !bg-[#0070f3] !border-2 !border-white dark:!border-black !rounded-full shadow-sm hover:scale-125 transition-transform"
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white dark:!border-slate-900 !rounded-full shadow-sm hover:scale-125 transition-transform"
+        className="!w-2.5 !h-2.5 !bg-[#0070f3] !border-2 !border-white dark:!border-black !rounded-full shadow-sm hover:scale-125 transition-transform"
       />
 
       <div className="flex items-center justify-between gap-1 mb-1.5">
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+          <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-[#0070f3]/10 text-[#0070f3] border border-[#0070f3]/20">
             {node.id}
           </span>
-          <span className="flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          <span className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-neutral-500">
             <GitBranch className="w-3 h-3" /> Quyết định
           </span>
         </div>
 
         {needsReview ? (
-          <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-600 text-white shadow-sm">
-            <AlertTriangle className="w-3 h-3" /> Cần xem lại
+          <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500 text-white shadow-sm">
+            <AlertTriangle className="w-2.5 h-2.5" /> Cần xem lại
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-            <Clock className="w-3 h-3" /> {node.effortWeeks} tuần
+          <span className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-800">
+            <Clock className="w-2.5 h-2.5" /> {node.effortWeeks} tuần
           </span>
         )}
       </div>
 
-      <p className="text-xs font-medium leading-snug line-clamp-2">
+      <p className="text-xs font-medium text-neutral-900 dark:text-neutral-100 leading-snug line-clamp-2">
         {node.text}
       </p>
 
       {isCascadeTarget && (
-        <div className="mt-2 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
-          ⚠️ Bị ảnh hưởng bởi giả định đã bị bác bỏ
+        <div className="mt-2 text-[10px] font-medium text-rose-600 dark:text-rose-400 flex items-center gap-1 bg-rose-500/10 px-2 py-1 rounded border border-rose-500/20">
+          <span>⚠️ Bị ảnh hưởng bởi giả định đã bị bác bỏ</span>
         </div>
       )}
     </div>
@@ -76,4 +76,3 @@ export const DecisionNodeComponent = memo(({ id, data, selected }: NodeProps) =>
 });
 
 DecisionNodeComponent.displayName = 'DecisionNodeComponent';
-

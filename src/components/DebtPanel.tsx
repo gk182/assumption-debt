@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGraphStore } from '@/lib/store';
 import { AssumptionNode } from '@/lib/types';
 import {
@@ -34,7 +34,12 @@ import {
   RefreshCw,
   Link as LinkIcon,
   History as HistoryIcon,
-  Bookmark
+  Bookmark,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ChevronRight,
+  ChevronLeft,
+  GripVertical
 } from 'lucide-react';
 import {
   exportTasksToMarkdown,
@@ -79,6 +84,81 @@ export function DebtPanel({
   const [activeTab, setActiveTab] = useState<'risk' | 'tasks' | 'node' | 'actions'>('risk');
   const [taskFilter, setTaskFilter] = useState<'all' | 'proposed' | 'approved'>('all');
   const [copySuccess, setCopySuccess] = useState(false);
+
+  // Vercel-style Collapsible & Resizable Sidebar State
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [panelWidth, setPanelWidth] = useState(380);
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Restore width & collapse state from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedCollapsed = localStorage.getItem('assumption_sidebar_collapsed');
+      if (savedCollapsed !== null) {
+        setIsCollapsed(savedCollapsed === 'true');
+      }
+      const savedWidth = localStorage.getItem('assumption_sidebar_width');
+      if (savedWidth) {
+        const w = parseInt(savedWidth, 10);
+        if (!isNaN(w) && w >= 280 && w <= 700) {
+          setPanelWidth(w);
+        }
+      }
+    }
+  }, []);
+
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('assumption_sidebar_collapsed', String(next));
+      }
+      return next;
+    });
+  };
+
+  const updateWidth = (w: number) => {
+    const clamped = Math.max(280, Math.min(680, Math.round(w)));
+    setPanelWidth(clamped);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('assumption_sidebar_width', String(clamped));
+    }
+  };
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !sidebarRef.current) return;
+      const rect = sidebarRef.current.getBoundingClientRect();
+      const newWidth = e.clientX - rect.left;
+      updateWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      if (isResizing) {
+        setIsResizing(false);
+      }
+    };
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   const [refuteReason, setRefuteReason] = useState('');
   const [showRefuteInput, setShowRefuteInput] = useState(false);
@@ -206,65 +286,178 @@ export function DebtPanel({
     return true;
   });
 
+  // Collapsed View (Vercel-style slim icon rail)
+  if (isCollapsed) {
+    return (
+      <aside className="w-[56px] flex-shrink-0 bg-white dark:bg-[#000000] border-r border-neutral-200 dark:border-neutral-800 flex flex-col items-center py-3.5 h-full z-20 shadow-sm select-none transition-all duration-150">
+        {/* Toggle open button on top */}
+        <button
+          onClick={toggleCollapse}
+          className="w-9 h-9 rounded-md flex items-center justify-center text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 transition mb-3"
+          title="Mở rộng thanh điều khiển (Expand Sidebar)"
+        >
+          <PanelLeftOpen className="w-4 h-4" />
+        </button>
+
+        {/* Vercel Iconic Mark */}
+        <div className="w-8 h-8 rounded-md bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-xs mb-4 shadow-sm">
+          ▲
+        </div>
+
+        {/* Vertical Tab Icons */}
+        <div className="flex flex-col items-center gap-2 flex-1 w-full px-2">
+          <button
+            onClick={() => {
+              setActiveTab('risk');
+              setIsCollapsed(false);
+            }}
+            className={`w-9 h-9 rounded-md flex items-center justify-center transition relative ${
+              activeTab === 'risk'
+                ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+            }`}
+            title={`Rủi ro (${metrics.totalDebt.toFixed(1)} điểm nợ)`}
+          >
+            <TrendingUp className="w-4 h-4 text-amber-500" />
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('tasks');
+              setIsCollapsed(false);
+            }}
+            className={`w-9 h-9 rounded-md flex items-center justify-center transition relative ${
+              activeTab === 'tasks'
+                ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+            }`}
+            title="Công việc (Tasks)"
+          >
+            <CheckSquare className="w-4 h-4 text-emerald-500" />
+            {pendingTasksCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-mono text-[9px] flex items-center justify-center font-bold">
+                {pendingTasksCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('node');
+              setIsCollapsed(false);
+            }}
+            className={`w-9 h-9 rounded-md flex items-center justify-center transition ${
+              activeTab === 'node'
+                ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+            }`}
+            title={selectedNode ? `Chi tiết nút ${selectedNode.id}` : 'Chi tiết nút'}
+          >
+            <Sliders className="w-4 h-4 text-[#0070f3]" />
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('actions');
+              setIsCollapsed(false);
+            }}
+            className={`w-9 h-9 rounded-md flex items-center justify-center transition ${
+              activeTab === 'actions'
+                ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+            }`}
+            title="Thao tác & Nạp PRD"
+          >
+            <Sparkles className="w-4 h-4 text-indigo-500" />
+          </button>
+        </div>
+
+        {/* Bottom Expand Arrow */}
+        <button
+          onClick={toggleCollapse}
+          className="w-8 h-8 rounded-md flex items-center justify-center text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition mt-auto"
+          title="Mở rộng thanh bên (Expand)"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="w-full lg:w-[400px] flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full overflow-hidden shadow-sm z-10">
+    <aside
+      ref={sidebarRef}
+      style={{ width: `${panelWidth}px` }}
+      className="relative flex-shrink-0 bg-white dark:bg-[#000000] border-r border-neutral-200 dark:border-neutral-800 flex flex-col h-full overflow-hidden shadow-sm z-20 select-auto transition-[width] duration-75"
+    >
       {/* Top Header & Core Metrics */}
-      <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex-shrink-0">
+      <div className="p-3.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-950/60 flex-shrink-0">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center">
-              <Flame className="w-4 h-4" />
+            <div className="w-6 h-6 rounded-md bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-xs shadow-sm">
+              ▲
             </div>
             <div>
-              <h2 className="font-bold text-xs tracking-tight text-slate-900 dark:text-slate-100">
+              <h2 className="font-bold text-xs tracking-tight text-neutral-900 dark:text-neutral-100 font-mono">
                 Assumption Debt
               </h2>
-              <p className="text-[10px] text-slate-500 font-mono truncate max-w-[210px]">
+              <p className="text-[10px] text-neutral-500 font-mono truncate max-w-[170px]">
                 {project}
               </p>
             </div>
           </div>
-          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
-            Ước tính
-          </span>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] uppercase font-mono tracking-wider px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-800 font-semibold">
+              Ước tính
+            </span>
+            {/* Collapse Button */}
+            <button
+              onClick={toggleCollapse}
+              className="p-1.5 rounded-md hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 transition"
+              title="Thu gọn thanh tab bar (Collapse)"
+            >
+              <PanelLeftClose className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* Big numbers */}
+        {/* Big numbers - Vercel Metric Cards */}
         <div className="grid grid-cols-2 gap-2 mt-2">
-          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-            <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
+          <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800">
+            <div className="text-[10px] font-medium text-amber-600 dark:text-amber-400 font-mono">
               Tổng điểm nợ rủi ro
             </div>
-            <div className="text-xl font-black text-amber-600 dark:text-amber-400 mt-0.5 font-mono">
+            <div className="text-xl font-black text-neutral-900 dark:text-neutral-100 mt-0.5 font-mono">
               {metrics.totalDebt.toFixed(1)}
             </div>
-            <div className="text-[9px] text-slate-500 mt-0.5 truncate">
-              {metrics.unverifiedCount} giả định chưa xác thực
+            <div className="text-[9px] text-neutral-500 mt-0.5 truncate font-mono">
+              {metrics.unverifiedCount} chưa xác thực
             </div>
           </div>
 
-          <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
-            <div className="text-[10px] font-medium text-rose-700 dark:text-rose-300">
+          <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800">
+            <div className="text-[10px] font-medium text-rose-600 dark:text-rose-400 font-mono">
               Công việc gặp rủi ro
             </div>
-            <div className="text-xl font-black text-rose-600 dark:text-rose-400 mt-0.5 font-mono">
+            <div className="text-xl font-black text-neutral-900 dark:text-neutral-100 mt-0.5 font-mono">
               {metrics.totalEffortAtRisk.toFixed(1)}{' '}
-              <span className="text-xs font-normal">tuần</span>
+              <span className="text-xs font-normal text-neutral-500">tuần</span>
             </div>
-            <div className="text-[9px] text-slate-500 mt-0.5 truncate">
-              Có thể lãng phí nếu sai
+            <div className="text-[9px] text-neutral-500 mt-0.5 truncate font-mono">
+              Có thể lãng phí
             </div>
           </div>
         </div>
 
-        {/* Tab Bar Navigation */}
-        <div className="flex items-center gap-1 mt-2.5 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 text-xs font-semibold">
+        {/* Tab Bar Navigation (Vercel segmented pill control) */}
+        <div className="flex items-center gap-1 mt-2.5 p-1 rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-xs font-medium">
           <button
             onClick={() => setActiveTab('risk')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] ${
+            className={`flex-1 py-1 rounded-md flex items-center justify-center gap-1 transition text-[11px] font-medium ${
               activeTab === 'risk'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm font-semibold'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5 text-amber-500" />
@@ -273,10 +466,10 @@ export function DebtPanel({
 
           <button
             onClick={() => setActiveTab('tasks')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] relative ${
+            className={`flex-1 py-1 rounded-md flex items-center justify-center gap-1 transition text-[11px] font-medium relative ${
               activeTab === 'tasks'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm font-semibold'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
             }`}
           >
             <CheckSquare className="w-3.5 h-3.5 text-emerald-500" />
@@ -290,22 +483,22 @@ export function DebtPanel({
 
           <button
             onClick={() => setActiveTab('node')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] ${
+            className={`flex-1 py-1 rounded-md flex items-center justify-center gap-1 transition text-[11px] font-medium ${
               activeTab === 'node'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm font-semibold'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
             }`}
           >
-            <Sliders className="w-3.5 h-3.5 text-blue-500" />
-            <span>{selectedNode ? selectedNode.id : 'Chi tiết'}</span>
+            <Sliders className="w-3.5 h-3.5 text-[#0070f3]" />
+            <span className="truncate max-w-[50px]">{selectedNode ? selectedNode.id : 'Chi tiết'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('actions')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] ${
+            className={`flex-1 py-1 rounded-md flex items-center justify-center gap-1 transition text-[11px] font-medium ${
               activeTab === 'actions'
-                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 shadow-sm font-semibold'
+                : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-200'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
@@ -1087,6 +1280,22 @@ export function DebtPanel({
           </div>
         </div>
       )}
+
+      {/* Resizable Drag Handle on Right Edge (Vercel Style) */}
+      <div
+        onMouseDown={startResizing}
+        onDoubleClick={() => updateWidth(380)}
+        title="Kéo sang phải/trái để dãn độ rộng (Click đúp để về 380px)"
+        className={`absolute top-0 right-0 w-2 h-full cursor-col-resize z-30 transition-colors group flex items-center justify-center ${
+          isResizing ? 'bg-[#0070f3]' : 'hover:bg-[#0070f3]/40'
+        }`}
+      >
+        <div
+          className={`w-0.5 h-8 rounded-full transition-colors ${
+            isResizing ? 'bg-white' : 'bg-neutral-300 dark:bg-neutral-700 group-hover:bg-[#0070f3]'
+          }`}
+        />
+      </div>
     </aside>
   );
 }

@@ -24,53 +24,85 @@ export function getLayoutedElements(
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  // Compact, intentional spacing so graphs fit naturally without microscopic zoom-out
+  // Clean, comfortable layout spacing inspired by Vercel architecture diagrams
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: isCompact ? 28 : 36, // Khoảng cách dọc vừa vặn, không bị rời rạc
-    ranksep: isCompact ? 90 : 120, // Khoảng cách ngang giữa các rank gọn gàng
-    marginx: 40,
-    marginy: 40
+    nodesep: isCompact ? 24 : 32,
+    ranksep: isCompact ? 80 : 110,
+    marginx: 36,
+    marginy: 36
   });
 
   const nodeDimensions: Record<string, { width: number; height: number }> = {
-    document: { width: 280, height: 145 },
-    assumption: { width: 290, height: isCompact ? 110 : 165 },
-    decision: { width: 250, height: isCompact ? 80 : 110 },
+    document: { width: 280, height: 135 },
+    assumption: { width: 290, height: isCompact ? 100 : 160 },
+    decision: { width: 260, height: isCompact ? 80 : 105 },
     task: { width: 220, height: isCompact ? 70 : 85 }
   };
 
-  // 1. Prepare working node list (include virtual Document Root Node if enabled)
-  const workingNodes: Array<GraphNode | { id: string; type: string; text: string }> = [...nodes];
-  const workingEdges: Array<GraphEdge | { from: string; to: string; relation: string; isRootEdge?: boolean }> = [
-    ...edges
+  // 1. Multi-Document Support: Identify documents
+  const docNames = Array.from(
+    new Set(nodes.map((n) => n.source?.doc).filter(Boolean))
+  ) as string[];
+
+  const workingNodes: Array<GraphNode | { id: string; type: string; text: string; docId?: string }> = [
+    ...nodes
   ];
+  const workingEdges: Array<
+    GraphEdge | { from: string; to: string; relation: string; isRootEdge?: boolean; rootDoc?: string }
+  > = [...edges];
 
-  const hasAssumptions = nodes.some((n) => n.type === 'assumption');
+  const assumptions = nodes.filter((n) => n.type === 'assumption');
 
-  if (includeProjectRoot && hasAssumptions) {
-    const rootId = 'PRD_ROOT';
-    workingNodes.unshift({
-      id: rootId,
-      type: 'document',
-      text: projectName
-    });
+  if (includeProjectRoot && assumptions.length > 0) {
+    if (docNames.length > 1) {
+      // Multiple documents exist: Create a root node for each document
+      docNames.forEach((docName, idx) => {
+        const rootId = `DOC_ROOT_${idx + 1}`;
+        workingNodes.unshift({
+          id: rootId,
+          type: 'document',
+          text: docName,
+          docId: docName
+        });
 
-    // Connect root to all assumptions that don't have another assumption prerequisite
-    const assumptions = nodes.filter((n) => n.type === 'assumption');
-    for (const a of assumptions) {
-      workingEdges.push({
-        from: a.id,
-        to: rootId,
-        relation: 'originates_from',
-        isRootEdge: true
+        const docAssumptions = assumptions.filter((a) => a.source?.doc === docName);
+        const targetAssumptions = docAssumptions.length > 0 ? docAssumptions : (idx === 0 ? assumptions : []);
+
+        for (const a of targetAssumptions) {
+          workingEdges.push({
+            from: a.id,
+            to: rootId,
+            relation: 'originates_from',
+            isRootEdge: true,
+            rootDoc: docName
+          });
+        }
       });
+    } else {
+      // Single Document Root
+      const rootId = 'PRD_ROOT';
+      const rootTitle = docNames[0] || projectName;
+      workingNodes.unshift({
+        id: rootId,
+        type: 'document',
+        text: rootTitle
+      });
+
+      for (const a of assumptions) {
+        workingEdges.push({
+          from: a.id,
+          to: rootId,
+          relation: 'originates_from',
+          isRootEdge: true
+        });
+      }
     }
   }
 
   // 2. Register nodes in Dagre
   for (const node of workingNodes) {
-    const dim = nodeDimensions[node.type] || { width: 250, height: 110 };
+    const dim = nodeDimensions[node.type] || { width: 250, height: 105 };
     dagreGraph.setNode(node.id, { width: dim.width, height: dim.height });
   }
 
@@ -86,7 +118,7 @@ export function getLayoutedElements(
   // 4. Transform to React Flow Nodes
   const flowNodes: Node[] = workingNodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id) || { x: 0, y: 0 };
-    const dim = nodeDimensions[node.type] || { width: 250, height: 110 };
+    const dim = nodeDimensions[node.type] || { width: 250, height: 105 };
 
     return {
       id: node.id,
@@ -101,26 +133,26 @@ export function getLayoutedElements(
     };
   });
 
-  // 5. Transform to React Flow Edges
+  // 5. Transform to React Flow Edges (with markerEnd pointing forward!)
   const flowEdges: Edge[] = workingEdges.map((edge, idx) => {
     const isRootEdge = (edge as any).isRootEdge;
 
     if (isRootEdge) {
       return {
         id: `e-root-${edge.from}-${idx}`,
-        source: edge.to, // PRD_ROOT
-        target: edge.from, // A1, A2, etc.
+        source: edge.to, // Root Node
+        target: edge.from, // Assumption Node
         type: 'bezier',
         animated: true,
-        markerStart: {
+        markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 10,
           height: 10,
-          color: '#f59e0b'
+          color: '#888888'
         },
         style: {
-          stroke: '#f59e0b',
-          strokeWidth: 2,
+          stroke: '#888888',
+          strokeWidth: 1.5,
           strokeDasharray: '4 4',
           opacity: 0.75
         }
@@ -129,19 +161,20 @@ export function getLayoutedElements(
 
     return {
       id: `e-${edge.to}-${edge.from}-${idx}`,
-      source: edge.to, // Prerequisite (Left handle Position.Right)
-      target: edge.from, // Dependent (Right handle Position.Left)
+      source: edge.to, // Prerequisite (e.g. A1)
+      target: edge.from, // Dependent (e.g. D1)
       type: 'bezier',
       animated: false,
-      markerStart: {
+      markerEnd: {
         type: MarkerType.ArrowClosed,
-        width: 13,
-        height: 13,
-        color: '#64748b'
+        width: 12,
+        height: 12,
+        color: '#737373'
       },
       style: {
-        stroke: '#94a3b8',
-        strokeWidth: 2
+        stroke: '#737373',
+        strokeWidth: 1.5,
+        opacity: 0.8
       }
     };
   });

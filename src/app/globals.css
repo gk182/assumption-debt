@@ -1,1 +1,46 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --canvas: #fafafa;
+    --canvas-elevated: #ffffff;
+    --ink: #171717;
+    --body: #4d4d4d;
+    --mute: #8f8f8f;
+    --hairline: #ebebeb;
+    --link: #0070f3;
+  }
+
+  .dark {
+    --canvas: #000000;
+    --canvas-elevated: #0a0a0a;
+    --ink: #ededed;
+    --body: #a1a1a1;
+    --mute: #737373;
+    --hairline: #262626;
+    --link: #0070f3;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+  }
+}
+
+/* Vercel minimalist sleek scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.4);
+}

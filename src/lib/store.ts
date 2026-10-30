@@ -29,6 +29,7 @@ import {
   appendNodeHistory,
   createHistoryEvent
 } from './history';
+import { mergeAssumptions } from './dedup';
 
 export interface CascadeState {
   isActive: boolean;
@@ -74,6 +75,7 @@ interface GraphStore {
     category?: string;
   }) => string;
   deleteNode: (nodeId: string) => void;
+  mergeNodes: (keepId: string, removeId: string) => void;
   connectNodes: (from: string, to: string, reason?: string) => { success: boolean; error?: string };
   disconnectNodes: (from: string, to: string) => void;
 
@@ -242,6 +244,18 @@ export const useGraphStore = create<GraphStore>()(
           nodes: res.nodes,
           edges: res.edges,
           selectedNodeId: selectedNodeId === nodeId ? null : selectedNodeId
+        });
+      },
+
+      mergeNodes: (keepId: string, removeId: string) => {
+        const { nodes, edges, past, project } = get();
+        const merged = mergeAssumptions({ project, nodes, edges }, keepId, removeId);
+        set({
+          past: [...past.slice(-24), { nodes, edges }],
+          future: [],
+          nodes: merged.nodes,
+          edges: merged.edges,
+          selectedNodeId: keepId
         });
       },
 
@@ -571,6 +585,7 @@ export const useGraphStore = create<GraphStore>()(
             whyItMatters: pa.whyItMatters,
             howToVerify: pa.howToVerify,
             source: {
+              doc: proposedProjectName || undefined,
               quote: pa.source.quote,
               location: pa.source.location
             }
@@ -592,7 +607,9 @@ export const useGraphStore = create<GraphStore>()(
               text: pd.text,
               status: 'active',
               effortWeeks: pd.estimatedEffortWeeks || 1,
-              source: pd.source ? { quote: pd.source.quote, location: pd.source.location } : undefined
+              source: pd.source
+                ? { ...pd.source, doc: proposedProjectName || undefined }
+                : { quote: '', doc: proposedProjectName || undefined }
             });
           } else {
             newNodes.push({
@@ -601,7 +618,9 @@ export const useGraphStore = create<GraphStore>()(
               text: pd.text,
               status: 'active',
               effortWeeks: pd.estimatedEffortWeeks || 1,
-              source: pd.source ? { quote: pd.source.quote, location: pd.source.location } : undefined
+              source: pd.source
+                ? { ...pd.source, doc: proposedProjectName || undefined }
+                : { quote: '', doc: proposedProjectName || undefined }
             });
           }
         }
@@ -667,7 +686,15 @@ export const useGraphStore = create<GraphStore>()(
         }
 
         const finalProject = replace && proposedProjectName ? proposedProjectName : existingProject;
-        const finalNodes = replace ? newNodes : [...existingNodes, ...newNodes];
+        const baseNodes = replace
+          ? newNodes
+          : existingNodes.map((n) => ({
+              ...n,
+              source: n.source
+                ? { ...n.source, doc: n.source.doc || existingProject }
+                : { quote: '', doc: existingProject }
+            }));
+        const finalNodes = replace ? newNodes : [...baseNodes, ...newNodes];
         const finalEdges = replace ? newEdges : [...existingEdges, ...newEdges];
         const generatedTasks = generateVerificationTasks(finalNodes, finalEdges, 4);
 
