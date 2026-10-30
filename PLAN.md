@@ -159,119 +159,118 @@ Thứ tự đề xuất, mỗi bước độc lập:
 
 ---
 
-# PHẦN THƯƠNG MẠI HÓA (B2B SaaS Transition - Tiếp nối sau Phase 11 & 13)
+# PHẦN THƯƠNG MẠI HÓA HIỆU ĐÍNH (B2B SaaS Roadmap — Chuẩn hóa theo Kiểm toán Red Team)
+> **Tài liệu kiểm toán gốc & đối chứng số liệu:** `docs/red_team_audit.md`
+> **Nguyên tắc bất biến:** Giữ nguyên vẹn 100% logic đồ thị thuần khiết (`src/lib/graph.ts`), 57 unit tests và toàn bộ tính năng đã hoàn thành từ Phase 0 đến Phase 11. Các phase thương mại hóa chỉ bổ sung tầng kiểm chứng khoa học, tự động hóa CI/CD, nạp dữ liệu và tích hợp hệ thống.
 
-> **Mục tiêu chiến lược:** Chuyển đổi Assumption Debt từ một công cụ vẽ đồ thị phân tích cục bộ (Local Tool) thành **Nền tảng Quản trị Rủi ro và Giả định Dự án (Assumption & Risk Governance Platform)** dành cho các nhóm Product & Engineering trong doanh nghiệp.
-> **Nguyên tắc bảo toàn:** Giữ nguyên vẹn 100% logic đồ thị thuần khiết (`src/lib/graph.ts`), các unit test và các tính năng đã hoàn thành từ Phase 0 đến Phase 11. Các phase thương mại hóa chỉ bổ sung tầng lưu trữ đám mây, nạp dữ liệu tự động và tích hợp hệ sinh thái quản lý công việc.
+## 1. Định vị Sản phẩm & Luận điểm Giá trị Đã Kiểm chứng (Calibrated Value Proposition)
 
-## 1. Định vị Sản phẩm & Lợi thế Cạnh tranh (Value Proposition & Moat)
-
-### Vấn đề cốt lõi
-Các doanh nghiệp công nghệ lãng phí 30–40% ngân sách kỹ thuật để xây dựng những tính năng vô dụng do quyết định được đưa ra dựa trên các giả định thị trường/kỹ thuật sai lầm nhưng không được kiểm chứng.
+### Vấn đề cốt lõi (Có trích dẫn nguồn thực nghiệm)
+* **Lãng phí tính năng:** Theo nghiên cứu trên 615 công ty SaaS của Pendo (2019), **80% tính năng phần mềm đám mây hiếm khi hoặc không bao giờ được sử dụng** (tiêu tốn 29,5 tỷ USD chi phí R&D).
+* **Chi phí nợ kỹ thuật & bảo trì:** Khảo sát của Stripe (2018) và McKinsey (2020) chỉ ra lập trình viên mất **32,8% đến 42,1% thời gian mỗi tuần** và doanh nghiệp mất **10%–20% ngân sách sản phẩm mới** cho việc bảo trì mã xấu và xử lý nợ kỹ thuật phát sinh từ các quyết định sai lầm.
+* **Sứ mệnh của Assumption Debt:** Ngăn chặn sự lãng phí này ngay từ giai đoạn thiết kế bằng cách kiểm toán và định lượng rủi ro của các giả định ngầm trong PRD/ADR trước khi viết dòng code đầu tiên.
 
 ### Định vị khác biệt
-* **Jira / Linear / ClickUp:** Quản lý *CÁI GÌ ĐƯỢC LÀM* (Execution & Tasks) — Mặc định mọi ticket đều đúng đắn.
-* **Assumption Debt:** Quản lý *TẠI SAO LẠI LÀM VÀ ĐỘ TIN CẬY CỦA NÓ* (Epistemology & Risk) — Quản lý nền tảng niềm tin đứng sau toàn bộ backlog.
-
-### Rào cản phòng thủ (Moat)
-1. **Deterministic Dependency Engine:** Mối liên kết phụ thuộc có thể kiểm tra toán học giữa Giả định $\rightarrow$ Quyết định $\rightarrow$ Công việc $\rightarrow$ Tuần rủi ro.
-2. **Workflow Embedded:** Không phải là một trang dashboard cô lập để người dùng copy-paste, mà gắn chặt vào PRD (Notion, Google Docs), Code (GitHub PR, ADR) và Task tracker (Linear, Jira).
-3. **Historical Veracity Ledger:** Dữ liệu lịch sử về tỷ lệ giả định đúng/sai của từng nhóm/PM theo thời gian.
+* **Jira / Linear / ClickUp:** Quản lý *CÁI GÌ ĐƯỢC LÀM* (Execution & Tasks) — Ngầm định mọi ticket đều đúng đắn.
+* **Assumption Debt:** Quản lý *TẠI SAO LÀM VÀ ĐỘ TIN CẬY CỦA NÓ* (Epistemology & Risk) — Quản lý nền tảng niềm tin đứng sau toàn bộ backlog.
+* **Mũi nhọn thâm nhập thị trường (Market Wedge):** Bắt đầu bằng **Headless PRD Linter (GitHub Action / CLI)** nhúng trực tiếp vào Pull Request kết hợp BYOK (tự mang khóa API), giải quyết triệt để rào cản bảo mật InfoSec và chi phí API $0 cho nhà phát triển trước khi mở rộng lên Cloud Dashboard.
 
 ---
 
-## 2. Kiến trúc Kỹ thuật Thương mại (Target Architecture)
+## 2. Kiến trúc Kỹ thuật Thương mại (Calibrated Target Architecture)
 
 ```mermaid
 flowchart TD
-    subgraph Ingestion["1. Tầng Thu thập (Ingestion)"]
-        GDocs["Google Docs / Notion API"]
-        GH["GitHub PR / ADR Webhooks"]
-        FFile["PDF / Markdown Drag & Drop"]
+    subgraph Ingestion["1. Tầng Thu thập (Ingestion không ma sát)"]
+        GHAction["Headless GitHub Action (PR & ADR Bot)"]
+        GDocs["Google Docs (drive.file Picker API - Né CASA)"]
+        Notion["Notion API OAuth2"]
+        Files["PDF / DOCX / MD Upload (NFC Normalization)"]
     end
 
-    subgraph CoreEngine["2. Backend & Extraction Engine"]
-        API["Next.js App Router / Edge API"]
-        Queue["Async Job Queue (Inngest / BullMQ)"]
-        LLM["Multi-LLM Router (Claude 3.5 Sonnet / Gemini 2.5 Flash)"]
-        GraphCore["Deterministic Graph Engine (graph.ts)"]
+    subgraph CoreEngine["2. Bộ máy Trích xuất Phân tầng & Đồ thị"]
+        Router["Multi-LLM Two-Stage Router"]
+        Stage1["Bước 1: Gemini 2.5 Flash / 4o-mini (Lọc thô & sourceQuote)"]
+        Stage2["Bước 2: Claude 3.5 Sonnet (Suy luận nhân quả depends_on)"]
+        DiffEngine["Semantic Graph Diff & ChunkHashes (Trích xuất vi sai)"]
+        GraphCore["Deterministic Graph Engine (src/lib/graph.ts)"]
     end
 
-    subgraph Storage["3. Tầng Dữ liệu (Multi-tenant DB)"]
+    subgraph Storage["3. Tầng Dữ liệu (Optimistic Versioning)"]
         PG[("PostgreSQL (Supabase / Neon)")]
-        Rbac["Row-Level Security & Org Tenancy"]
+        VersionCtrl["Optimistic Lock (WHERE version = :expected)"]
+        TenantRLS["Row-Level Security & Org Tenancy"]
     end
 
     subgraph Sync["4. Tầng Tích hợp Vòng lặp (Action Loop)"]
-        Jira["Jira / Linear 2-way Sync"]
-        Slack["Slack Bot (Stale Alerts & Cascade Warnings)"]
+        LinearJira["Linear & Jira 1-Way / 2-Way Sync"]
+        Slack["Slack Incoming Webhook / Unlisted Bot"]
     end
 
     subgraph UI["5. Giao diện Người dùng"]
-        Web["Next.js + React Flow (Realtime Collaboration)"]
+        Web["Next.js + React Flow (Progressive Top-K Loading)"]
     end
 
-    Ingestion --> API
-    API --> Queue
-    Queue --> LLM
-    LLM --> GraphCore
+    GHAction --> DiffEngine
+    GDocs --> DiffEngine
+    Notion --> DiffEngine
+    Files --> DiffEngine
+    DiffEngine --> Router
+    Router --> Stage1
+    Stage1 --> Stage2
+    Stage2 --> GraphCore
     GraphCore --> PG
-    PG --> Rbac
-    Rbac --> UI
+    PG --> VersionCtrl
+    VersionCtrl --> TenantRLS
+    TenantRLS --> Web
     GraphCore --> Sync
+    LinearJira --> Sync
+    Slack --> Sync
 ```
 
 ---
 
-## 3. Chi tiết 5 Phase Thương mại hóa (Phases 14 - 18)
+## 3. Lộ trình Triển khai 3 Giai đoạn Hiệu đính (18 – 21 Tuần thực tế cho 1 Dev)
 
-### Phase 14: Đa người dùng & Lưu trữ Đám mây (Multi-tenant DB & Auth - 1-2 tuần)
-Lý do: Thoát khỏi giới hạn localStorage để nhiều người trong cùng tổ chức/team có thể cùng làm việc trên một dự án.
-- [ ] **Database & ORM:** Thiết lập PostgreSQL với Prisma hoặc Drizzle ORM (Supabase / Neon).
-- [ ] **Mô hình Thực thể (Schema):** `Organization` $\rightarrow$ `Workspace` $\rightarrow$ `Project` $\rightarrow$ `Document` $\rightarrow$ `GraphNodes` & `GraphEdges`.
-- [ ] **Xác thực & Phân quyền (Auth & RBAC):** Tích hợp Clerk / Supabase Auth (hỗ trợ Google Workspace SSO, GitHub OAuth, mời thành viên theo role: Admin, Editor, Viewer).
-- [ ] **Di chuyển trạng thái:** API CRUD cho Projects/Graphs, tự động đồng bộ trạng thái khi chỉnh sửa node/edge; duy trì fallback offline cho demo.
-- Done when: Đăng nhập tài khoản trên máy A, mở trên máy B thấy đúng đồ thị và trạng thái đã lưu.
+### Giai đoạn 1: Kiểm chứng Thống kê + Headless CI & Lõi Đám mây Tối thiểu (Tuần 1 – 4)
+*Mục tiêu: Đạt kiểm chứng thống kê khoa học cho Phase 6b, ra mắt công cụ kiểm tra PRD trên GitHub không tốn chi phí API, và dựng nền tảng lưu trữ đám mây an toàn.*
+- [ ] **Hoàn tất Phase 12 (Bảo mật & Riêng tư tại Client):** Bộ lọc ẩn danh PII, email, số điện thoại, tên riêng trước khi gửi payload lên LLM; chuẩn hóa bảng mã Unicode NFC cho tiếng Việt.
+- [ ] **Chạy lại Đánh giá Phase 6b Mở rộng:** Tiến hành trên 12–15 tài liệu thật (5 PRD, 5 ADR, 5 Spec) với 2 người gán nhãn độc lập theo quy trình Tiền đăng ký mù 15 phút (Blind 15-Minute Pre-registration), đo Cohen's $kappa$ và Gwet's AC1 (xem chi tiết tại `docs/red_team_audit.md`).
+- [ ] **Đóng gói Headless CLI & GitHub Action:** Đóng gói `src/lib/graph.ts`, `tasks.ts`, `chunking.ts` thành GitHub Action phân tích PRD/ADR trong Pull Request và tự động bình luận bảng nợ giả định (kèm hỗ trợ BYOK).
+- [ ] **Khởi tạo Database Đám mây với Khóa phiên bản Lạc quan:** Dựng Supabase PostgreSQL + Auth (Google/GitHub OAuth), lưu đồ thị JSON snapshot kiểm soát phiên bản (`version: number`), hỗ trợ kéo thả tệp `.md` và `.docx`.
+- **Cổng Quyết định 1 (Cuối Tuần 4):**
+  - $	ext{Actionable Precision} ge 70%$ (cận dưới khoảng tin cậy 95% $ge 60%$).
+  - $	ext{Objective Novelty Rate} ge 25%$ VÀ $ge 60%$ số tài liệu phát hiện ít nhất 1 giả định rủi ro cao bị bỏ sót.
+  - $ge 5$ nhóm kỹ thuật độc lập cài đặt GitHub Action hoặc dùng thử bản Cloud.
+  - *Rollback:* Nếu Precision $< 70%$, tạm dừng tính năng mới để tối ưu pipeline lọc 2 bước (Flash + Sonnet). Nếu Precision $< 50%$ hoặc $kappa < 0.40 Rightarrow$ Dừng dự án (Kill).
 
-### Phase 15: Nạp Dữ liệu Không ma sát (Zero-Friction Ingestion - 1 tuần)
-Lý do: Xóa bỏ hoàn toàn thao tác copy-paste thủ công vốn làm giảm retention của người dùng thực tế.
-- [ ] **Tải tệp trực tiếp:** Hỗ trợ kéo thả file `.pdf`, `.docx`, `.md` với bộ phân tích tự động trích xuất cấu trúc văn bản.
-- [ ] **Tích hợp Google Docs & Notion:** Kết nối OAuth2 để chọn tài liệu PRD trực tiếp từ Notion Workspace hoặc Google Drive.
-- [ ] **GitHub PR & ADR App:** GitHub Bot tự động quét các file Architecture Decision Record (`docs/adr/*.md`) hoặc mô tả PR để trích xuất giả định mỗi khi có Pull Request mới.
-- [ ] **Hàng đợi Xử lý Nền (Async Queue):** Dùng Inngest / Upstash QStash xử lý tài liệu dài mà không bị timeout HTTP.
-- Done when: Kéo 1 file PDF hoặc chọn 1 trang Notion, hệ thống tự động trích xuất và đưa vào Hòm thư duyệt (Review Inbox).
+### Giai đoạn 2: Nạp Dữ liệu Không ma sát, Vòng lặp 1 chiều & Thu phí Sớm (Tuần 5 – 10)
+*Mục tiêu: Đưa dữ liệu PRD từ Google Docs/Notion vào đồ thị không tốn công copy-paste, đẩy task sang Jira/Linear, và bắt đầu có doanh thu.*
+- [ ] **Tích hợp Google Picker (`drive.file`):** Cho phép người dùng chọn tài liệu Google Docs trực tiếp qua Picker API, né hoàn toàn kiểm định bảo mật CASA AL1 đắt đỏ.
+- [ ] **Tích hợp Notion OAuth2:** Đồng bộ cây Block của Notion PRD thành Markdown giữ nguyên cấu trúc tiêu đề.
+- [ ] **Trích xuất Vi sai theo Phân đoạn (`chunkHashes`):** Băm mã SHA-256 từng đoạn tiêu đề; khi PRD cập nhật chỉ gửi các đoạn thay đổi lên LLM, cắt giảm >90% chi phí token.
+- [ ] **Đẩy Task 1 Chiều (1-Way Issue Push):** Nút 1-click tạo ticket kiểm chứng sang Linear & Jira Software kèm liên kết ngược về Assumption Debt.
+- [ ] **Cảnh báo qua Slack Webhook:** Gửi thông báo tức thì khi giả định quan trọng bị quá hạn (`verifyBy`) hoặc bị bác bỏ (né rào cản 10 workspaces của Slack Marketplace).
+- [ ] **Stripe Billing & Bể Tín dụng AI (Pooled AI Credits):** Thu phí theo mô hình $19/creator/tháng (miễn phí người xem) kèm 250 AI credits/creator/tháng; tự động chuyển sang BYOK hoặc mua credit nạp thêm khi chạm trần.
+- **Cổng Quyết định 2 (Cuối Tuần 10):**
+  - Retention Tuần 4 (W4 Workspace Retention) $ge 40%$.
+  - Tối thiểu 3–5 khách hàng trả tiền thật với Biên lợi nhuận gộp thực tế $ge 75%$.
+  - *Pivot:* Nếu người dùng không quay lại Web app nhưng tương tác mạnh trên GitHub Action $Rightarrow$ Cắt bỏ Web SaaS để tập trung toàn lực vào bộ công cụ DevSecOps / Architecture Gate trên CI/CD.
 
-### Phase 16: Tích hợp Vòng lặp & Hệ sinh thái (SaaS Moat - Linear/Jira & Slack - 1-2 tuần)
-Lý do: Tạo rào cản phòng thủ bằng việc can thiệp trực tiếp vào quy trình làm việc hàng ngày của nhóm dev/PM.
-- [ ] **Linear & Jira 2-way Sync:**
-  - [ ] Nút *"Xuất sang Linear / Jira"* tạo trực tiếp Verification Tasks kèm nhãn và liên kết ngược về Assumption Debt.
-  - [ ] **Cascade Sync:** Khi một Assumption bị **Bác bỏ (Refuted)** $\rightarrow$ tự động gắn cờ cảnh báo `[ASSUMPTION FAILED]` trên các ticket Jira/Linear phụ thuộc.
-- [ ] **Slack App / Bot:**
-  - [ ] Hàng tuần gửi bản tóm tắt *"Weekly Assumption Debt"* về kênh dự án.
-  - [ ] Cảnh báo tức thì: *"⚠️ Giả định A2 (ảnh hưởng 6 tuần dev) đã quá hạn 14 ngày chưa có kết quả kiểm chứng!"*
-  - [ ] Thông báo Cascade: *"🚨 A1 vừa bị bác bỏ! 3 quyết định và 4 task sau đây cần họp khẩn để đánh giá lại!"*
-- Done when: Bác bỏ A1 trên app $\rightarrow$ Slack thông báo ngay lập tức và ticket liên quan trên Jira/Linear nhận cờ cảnh báo.
-
-### Phase 17: Bảng điều khiển Quản trị & Phân tích (Analytics & Governance - 1 tuần)
-Lý do: Cung cấp con số định lượng cho lãnh đạo (VP of Product, CTO, CPO) để theo dõi nợ giả định qua các sprint.
-- [ ] **Biểu đồ Giảm nợ (Assumption Debt Burn-down Chart):** Theo dõi xu hướng giảm dần của tổng số tuần rủi ro qua từng quý.
-- [ ] **Chỉ số Vận tốc Kiểm chứng (Verification Velocity):** Thời gian trung bình từ lúc phát hiện giả định đến khi xác thực/bác bỏ.
-- [ ] **Nhật ký Kiểm toán (Audit Trail):** Lưu vết toàn bộ lịch sử ai đã thêm, xác thực, bác bỏ node và lý do.
-- [ ] **Multiplayer Realtime:** Hiển thị con trỏ chuột và cập nhật tức thời khi nhiều thành viên cùng xem/thảo luận trên đồ thị.
-- Done when: Xuất được báo cáo điều hành toàn diện kèm biểu đồ xu hướng rủi ro cho cuộc họp Sprint Review.
-
-### Phase 18: Thương mại hóa, Định giá & Bảo mật Doanh nghiệp (Enterprise & Monetization - 1-2 tuần)
-Lý do: Thu phí định kỳ (SaaS Subscriptions) và đáp ứng tiêu chuẩn bảo mật cho khách hàng B2B.
-- [ ] **Cổng thanh toán:** Tích hợp Stripe Billing (Subscription, Invoicing).
-- [ ] **Mô hình định giá (Pricing Tiers):**
-  - **Starter (Miễn phí):** Tối đa 2 dự án, 1 người dùng, lưu trữ cục bộ/cơ bản.
-  - **Team ($15 - $20/seat/tháng):** Không giới hạn dự án, đồng bộ Cloud, tích hợp Linear/Jira/Slack, tối đa 20 thành viên.
-  - **Enterprise (Tùy chỉnh):** Single Sign-On (SAML/Okta), Custom LLM Key (BYOK), Cam kết không dùng dữ liệu để train AI (SOC2/GDPR compliance), Hỗ trợ dedicated.
-- Done when: Người dùng có thể nâng cấp gói Pro/Team qua Stripe và quản lý thành viên trong tổ chức.
+### Giai đoạn 3: Đồng bộ Vòng lặp 2 chiều, Quản trị Cấp cao & Enterprise (Tuần 11 – 21)
+*(Chỉ bắt đầu khi đã vượt qua Cổng Quyết định 2)*
+- [ ] **Đồng bộ 2 Chiều (Cascade 2-Way Sync):** Khi giả định bị bác bỏ, tự động gắn cờ `[ASSUMPTION FAILED]` trên ticket Jira/Linear phụ thuộc; đồng bộ ngược trạng thái hoàn thành của ticket về đồ thị.
+- [ ] **Đưa ứng dụng lên Slack Marketplace:** Nộp xét duyệt chính thức khi đã đạt điều kiện $ge 10$ active workspaces hoạt động ổn định.
+- [ ] **Bảng điều khiển Quản trị (Phase 17):** Biểu đồ Giảm nợ giả định (Assumption Debt Burn-down), Vận tốc kiểm chứng (Verification Velocity), và Nhật ký kiểm toán (Audit Trail).
+- [ ] **Gói Doanh nghiệp (Phase 18 Enterprise):** Tích hợp SAML SSO qua Clerk/WorkOS, hoàn tất kiểm định CASA AL1 nếu khách hàng đòi hỏi quét toàn bộ thư mục Drive, ban hành DPA chuẩn hóa.
+- **Cổng Quyết định 3 (Cuối Tuần 21):**
+  - Net Dollar Retention (NDR) quy đổi năm $ge 100%$.
+  - Tỷ lệ khép kín vòng lặp (Closed-Loop Rate) $ge 30%$.
+  - Thời gian thu hồi chi phí CAC $< 6$ tháng.
 
 ---
 
-## 4. Thiết kế Database Schema Cốt lõi (Drizzle/Prisma Blueprint)
+## 4. Thiết kế Database Schema Cốt lõi Hiệu đính (Drizzle/Prisma)
 
 ```typescript
 // Users & Orgs
@@ -280,13 +279,17 @@ export interface Organization {
   name: string;
   slug: string;
   plan: 'starter' | 'team' | 'enterprise';
+  aiCreditsMonthly: number; // e.g. 250 credits per creator
+  aiCreditsUsed: number;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   createdAt: Date;
 }
 
 export interface WorkspaceMember {
   orgId: string;
   userId: string;
-  role: 'admin' | 'editor' | 'viewer';
+  role: 'admin' | 'creator' | 'viewer'; // Paid creators vs Free viewers
 }
 
 // Projects & Documents
@@ -295,6 +298,7 @@ export interface Project {
   orgId: string;
   name: string;
   description?: string;
+  version: number; // Optimistic locking version
   createdAt: Date;
   updatedAt: Date;
 }
@@ -303,27 +307,34 @@ export interface Document {
   id: string;
   projectId: string;
   title: string;
-  sourceUrl?: string; // e.g. Notion URL, Google Doc link
-  contentHash: string;
+  sourceType: 'file_upload' | 'google_docs' | 'notion' | 'github_pr';
+  sourceUrl?: string;
+  contentHash: string; // Document-level SHA-256
+  chunkHashes: Record<string, string>; // Chunk-level SHA-256 for delta extraction
   rawText: string;
+  visibility: 'public_to_project' | 'restricted'; // Privacy protection
   createdAt: Date;
+  updatedAt: Date;
 }
 
-// Graph Nodes & Edges
+// Graph Nodes & Edges (With Delta Reconcile Support)
 export interface StoredNode {
   id: string;
   projectId: string;
   documentId?: string;
   type: 'assumption' | 'decision' | 'task';
   text: string;
-  status?: 'proposed' | 'unverified' | 'validated' | 'refuted';
+  status: 'proposed' | 'unverified' | 'validated' | 'refuted';
   importance?: number;
   confidence?: number;
   effortWeeks?: number;
   owner?: string;
   verifyBy?: string;
   sourceQuote?: string;
-  externalRefId?: string; // Jira Issue Key (e.g. PROJ-123) or Linear ID
+  isHumanEdited?: boolean; // Prevents delta extraction from overwriting manual changes
+  orphanedFromDoc?: boolean; // True if quote was deleted from updated PRD
+  externalRefId?: string; // Jira / Linear Issue ID
+  version: number;
 }
 
 export interface StoredEdge {
@@ -332,19 +343,29 @@ export interface StoredEdge {
   sourceNodeId: string;
   targetNodeId: string;
   relation: 'depends_on' | 'enables' | 'originates_from';
+  isHumanEdited?: boolean;
 }
 ```
 
 ---
 
-## 5. Kế hoạch Hành động Ngay (Sprint 1 Backlog - 2 Tuần tới)
+## 5. Giải pháp cho 6 Vấn đề Kỹ thuật Trọng yếu (Từ Kiểm toán Red Team)
 
-1. **Khởi tạo Database Schema:** Cài đặt Drizzle ORM + PostgreSQL (kết nối Supabase hoặc Neon miễn phí cho dev).
-2. **Triển khai Server Actions / API Routes:**
-   - `POST /api/projects` & `GET /api/projects/:id`
-   - `PUT /api/projects/:id/graph` (Lưu snapshot đồ thị từ Zustand lên DB).
-3. **Cài đặt Tải File (PDF/Markdown parsing):** Cho phép người dùng kéo thả trực tiếp file `.md` hoặc `.txt` thay vì chỉ dán textarea.
-4. **Tích hợp Webhook Web-out đầu tiên:** Thử nghiệm bắn thông báo qua Slack Webhook khi bấm nút "Bác bỏ" giả định.
+1. **Hợp nhất vi sai đồ thị khi PRD thay đổi (Stateful Graph Merge):** Gắn cờ `isHumanEdited: true` cho mọi node/edge người dùng đã sửa tay ở Phase 7; khi PRD cập nhật, dùng băm đoạn (`chunkHashes`) để chỉ cập nhật đoạn mới; chuyển các nút có quote bị xóa trong văn bản sang `orphanedFromDoc: true` thay vì xóa tự động.
+2. **Bảo mật phân quyền chéo giữa các tài liệu:** Gắn cờ `visibility` cho từng tài liệu trong đồ thị chung; che giấu `sourceQuote` đối với thành viên không có quyền đọc tài liệu mật; hỗ trợ API Hard Purge xóa dữ liệu sạch sẽ theo yêu cầu DPA/GDPR.
+3. **Kiểm thử hồi quy Prompt (Prompt Eval Harness trong CI):** Tích hợp kiểm thử tự động trong CI chạy trên 5 tài liệu chuẩn (Gold Set) mỗi khi có commit thay đổi file prompt hoặc schema, ngăn chặn hiện tượng trôi dạt mô hình (model drift).
+4. **Chuẩn hóa Unicode tiếng Việt (NFC Normalization):** Gọi bắt buộc `.normalize('NFC')` trên cả văn bản đầu vào lẫn trích dẫn `sourceQuote` trước khi chạy `filterHallucinations` và `dedup.ts`, loại bỏ lỗi xóa nhầm giả định do bảng mã tổ hợp (NFD) từ PDF/macOS.
+5. **Cổng kiểm soát con người bắt buộc (Mandatory Human-in-the-Loop):** Không một sự kiện bác bỏ hay cập nhật ticket nào sang Jira/Linear được kích hoạt tự động 100% nếu thiếu xác nhận của người dùng định danh; kèm điều khoản miễn trừ trách nhiệm pháp lý trong ToS.
+6. **Khởi tạo lũy tiến Top-K (Progressive Top-K Onboarding):** Khi trích xuất tài liệu dài 30 trang, hệ thống chỉ hiển thị trên Review Inbox và React Flow Top 5 chuỗi rủi ro cao nhất (`riskScore` lớn nhất) để tránh quá tải nhận thức cho người dùng; phần còn lại đưa vào backlog rủi ro thấp.
+
+---
+
+## 6. Kế hoạch Hành động Ngay (Sprint 1 Backlog — 2 Tuần tới)
+
+1. **Hoàn thiện Phase 12:** Thêm bộ lọc ẩn danh PII trước khi gửi payload lên LLM và hàm `.normalize('NFC')` trong `src/lib/chunking.ts`.
+2. **Xây dựng Harness Đánh giá Phase 6b Mở rộng:** Thu thập 12–15 tài liệu thật, thiết lập bảng chấm điểm mù 2 annotators và script tính Cohen's $kappa$ / Gwet's AC1.
+3. **Đóng gói Headless CLI / GitHub Action:** Tách logic lõi `graph.ts` và `tasks.ts` thành GitHub Action phân tích PRD/ADR trong Pull Request.
+4. **Khởi tạo Supabase PostgreSQL:** Thiết lập schema `Project` và `StoredNode` kèm cột `version` cho kiểm soát phiên bản lạc quan.
 
 ---
 ## Thứ tự khuyến nghị
