@@ -18,6 +18,11 @@ import {
 } from './graph';
 import seedData from '../../data/demo/seed.json';
 import { ExtractedAssumption, ExtractedDecision, ExtractedLink } from './schema';
+import {
+  GeneratedTask,
+  generateVerificationTasks,
+  generateReviewTasks
+} from './tasks';
 
 export interface CascadeState {
   isActive: boolean;
@@ -90,6 +95,15 @@ interface GraphStore {
   ) => void;
   setReviewDecision: (tempId: string, action: 'confirm' | 'reject', text?: string, importance?: number) => void;
   commitReviewToGraph: (replace?: boolean) => void;
+
+  // Phase 8: Task Generator
+  tasks: GeneratedTask[];
+  generateTasks: (topN?: number) => void;
+  approveTask: (taskId: string) => void;
+  rejectTask: (taskId: string) => void;
+  updateTask: (taskId: string, patch: Partial<GeneratedTask>) => void;
+  approveAllTasks: () => void;
+  clearTasks: () => void;
 }
 
 const initialSeedGraph: ProjectGraph = {
@@ -106,6 +120,7 @@ export const useGraphStore = create<GraphStore>()(
       edges: initialSeedGraph.edges,
       selectedNodeId: null,
       cascade: null,
+      tasks: generateVerificationTasks(initialSeedGraph.nodes, initialSeedGraph.edges, 3),
 
       // Phase 7: Undo / Redo
       past: [],
@@ -265,7 +280,8 @@ export const useGraphStore = create<GraphStore>()(
           nodes: [...initialSeedGraph.nodes],
           edges: [...initialSeedGraph.edges],
           selectedNodeId: null,
-          cascade: null
+          cascade: null,
+          tasks: generateVerificationTasks(initialSeedGraph.nodes, initialSeedGraph.edges, 3)
         });
       },
 
@@ -276,6 +292,7 @@ export const useGraphStore = create<GraphStore>()(
           edges: JSON.parse(JSON.stringify(initialSeedGraph.edges)),
           selectedNodeId: null,
           cascade: null,
+          tasks: generateVerificationTasks(initialSeedGraph.nodes, initialSeedGraph.edges, 3),
           proposedProjectName: null,
           proposedAssumptions: [],
           proposedDecisions: [],
@@ -312,9 +329,19 @@ export const useGraphStore = create<GraphStore>()(
             : n
         );
 
+        // Phase 8: Automatically generate review tasks for affected downstream nodes
+        const reviewTasks = generateReviewTasks(id, nodes, edges);
+        const currentTasks = get().tasks || [];
+        const existingTaskIds = new Set(currentTasks.map((t) => t.id));
+        const mergedTasks = [
+          ...reviewTasks.filter((t) => !existingTaskIds.has(t.id)),
+          ...currentTasks
+        ];
+
         set({
           nodes: updatedNodes,
           selectedNodeId: id,
+          tasks: mergedTasks,
           cascade: {
             isActive: true,
             refutedId: id,
@@ -327,12 +354,18 @@ export const useGraphStore = create<GraphStore>()(
       },
 
       validateAssumption: (id) => {
-        const { nodes } = get();
+        const { nodes, tasks } = get();
         const updatedNodes = nodes.map((n) =>
           n.id === id ? ({ ...n, status: 'validated' as const, refuteReason: undefined } as AssumptionNode) : n
         );
+        const updatedTasks = (tasks || []).map((t) =>
+          t.targetNodeId === id && t.type === 'verification'
+            ? { ...t, status: 'approved' as const }
+            : t
+        );
         set((state) => ({
           nodes: updatedNodes,
+          tasks: updatedTasks,
           cascade: state.cascade?.refutedId === id ? null : state.cascade
         }));
       },
@@ -352,6 +385,51 @@ export const useGraphStore = create<GraphStore>()(
         set((state) => ({
           cascade: state.cascade ? { ...state.cascade, isActive: false } : null
         }));
+      },
+
+      // Phase 8: Task Generator Actions
+      generateTasks: (topN = 3) => {
+        const { nodes, edges, tasks } = get();
+        const newVerifications = generateVerificationTasks(nodes, edges, topN);
+        const existingIds = new Set((tasks || []).map((t) => t.id));
+        set({
+          tasks: [
+            ...newVerifications.filter((t) => !existingIds.has(t.id)),
+            ...(tasks || [])
+          ]
+        });
+      },
+
+      approveTask: (taskId) => {
+        const { tasks } = get();
+        set({
+          tasks: (tasks || []).map((t) => (t.id === taskId ? { ...t, status: 'approved' } : t))
+        });
+      },
+
+      rejectTask: (taskId) => {
+        const { tasks } = get();
+        set({
+          tasks: (tasks || []).map((t) => (t.id === taskId ? { ...t, status: 'rejected' } : t))
+        });
+      },
+
+      updateTask: (taskId, patch) => {
+        const { tasks } = get();
+        set({
+          tasks: (tasks || []).map((t) => (t.id === taskId ? { ...t, ...patch } : t))
+        });
+      },
+
+      approveAllTasks: () => {
+        const { tasks } = get();
+        set({
+          tasks: (tasks || []).map((t) => ({ ...t, status: 'approved' }))
+        });
+      },
+
+      clearTasks: () => {
+        set({ tasks: [] });
       },
 
       setProposedData: (assumptions, decisions, links, projectName) => {
@@ -515,12 +593,16 @@ export const useGraphStore = create<GraphStore>()(
         }
 
         const finalProject = replace && proposedProjectName ? proposedProjectName : existingProject;
+        const finalNodes = replace ? newNodes : [...existingNodes, ...newNodes];
+        const finalEdges = replace ? newEdges : [...existingEdges, ...newEdges];
+        const generatedTasks = generateVerificationTasks(finalNodes, finalEdges, 4);
 
         // Merge or replace
         set({
           project: finalProject,
-          nodes: replace ? newNodes : [...existingNodes, ...newNodes],
-          edges: replace ? newEdges : [...existingEdges, ...newEdges],
+          nodes: finalNodes,
+          edges: finalEdges,
+          tasks: generatedTasks,
           cascade: null,
           proposedAssumptions: [],
           proposedDecisions: [],
@@ -557,6 +639,7 @@ export const useGraphStore = create<GraphStore>()(
         project: state.project,
         nodes: state.nodes,
         edges: state.edges,
+        tasks: state.tasks,
         cascade: state.cascade,
         proposedProjectName: state.proposedProjectName,
         proposedAssumptions: state.proposedAssumptions,

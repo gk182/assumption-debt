@@ -105,13 +105,13 @@ Lý do: liên kết do LLM đề xuất sẽ có chỗ sai; người dùng cần
 
 ## Phase 8: Task kiểm chứng (1 ngày, skill mới `task-generator`)
 Nguyên tắc: **đề xuất, người duyệt, rồi mới tạo**. Không tự tạo hàng loạt.
-- [ ] Hàm thuần `src/lib/tasks.ts`: `generateVerificationTasks(nodes, edges, topN)` chọn các giả định `unverified` có `riskScore` cao nhất, dùng `howToVerify` và `verifyWithinDays` từ kết quả trích xuất (nếu thiếu thì gọi LLM sinh một bước kiểm chứng rẻ)
-- [ ] Hàm `generateReviewTasks(refutedId)`: sau khi refute, sinh task "xem lại" cho từng nút downstream
-- [ ] Tab "Cần kiểm chứng" trong màn Graph: danh sách task đề xuất, mỗi task Duyệt / Sửa / Bỏ, có hạn (`dueDate`)
-- [ ] Xuất Markdown checklist và CSV, nút copy
-- [ ] Mỗi task có link ngược về nút giả định gốc
-- [ ] Viết skill `.agents/skills/task-generator/SKILL.md` (và bản `.claude/skills/` nếu dùng cả hai)
-- Done when: trên seed, top 3 task kiểm chứng đúng thứ tự rủi ro (`A1`, `A4`, `A2`); refute `A1` sinh 3 task xem lại cho `D1`, `D2`, `T1`; có test cho `tasks.ts`.
+- [x] Hàm thuần `src/lib/tasks.ts`: `generateVerificationTasks(nodes, edges, topN)` chọn các giả định `unverified` có `riskScore` cao nhất, dùng `howToVerify` và `verifyWithinDays` từ kết quả trích xuất (nếu thiếu thì gọi LLM sinh một bước kiểm chứng rẻ)
+- [x] Hàm `generateReviewTasks(refutedId)`: sau khi refute, sinh task "xem lại" cho từng nút downstream
+- [x] Tab "Cần kiểm chứng" trong màn Graph: danh sách task đề xuất, mỗi task Duyệt / Sửa / Bỏ, có hạn (`dueDate`)
+- [x] Xuất Markdown checklist và CSV, nút copy
+- [x] Mỗi task có link ngược về nút giả định gốc
+- [x] Viết skill `.agents/skills/task-generator/SKILL.md` (và bản `.claude/skills/` nếu dùng cả hai)
+- Done when: trên seed, top 3 task kiểm chứng đúng thứ tự rủi ro (`A1`, `A4`, `A2`); refute `A1` sinh 3 task xem lại cho `D1`, `D2`, `T1`; có test cho `tasks.ts` (6/6 tests passed).
 
 ## Phase 9: Lịch sử và bằng chứng (0.5-1 ngày)
 Lý do: phục vụ post-mortem ("thất bại do giả định nào sai") và chứng minh giá trị theo thời gian.

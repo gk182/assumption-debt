@@ -23,8 +23,21 @@ import {
   Layers,
   Plus,
   Zap,
-  Sliders
+  Sliders,
+  CheckSquare,
+  Copy,
+  Download,
+  Calendar,
+  User,
+  ExternalLink,
+  Check,
+  RefreshCw
 } from 'lucide-react';
+import {
+  exportTasksToMarkdown,
+  exportTasksToCSV,
+  GeneratedTask
+} from '@/lib/tasks';
 
 interface DebtPanelProps {
   onOpenExtractModal?: () => void;
@@ -49,15 +62,23 @@ export function DebtPanel({
     resetAssumptionStatus,
     getDownstreamOfSelected,
     project,
-    resetToInitial
+    resetToInitial,
+    tasks = [],
+    generateTasks,
+    approveTask,
+    rejectTask,
+    updateTask,
+    approveAllTasks
   } = useGraphStore();
 
-  const [activeTab, setActiveTab] = useState<'risk' | 'node' | 'actions'>('risk');
+  const [activeTab, setActiveTab] = useState<'risk' | 'tasks' | 'node' | 'actions'>('risk');
+  const [taskFilter, setTaskFilter] = useState<'all' | 'proposed' | 'approved'>('all');
+  const [copySuccess, setCopySuccess] = useState(false);
 
   const [refuteReason, setRefuteReason] = useState('');
   const [showRefuteInput, setShowRefuteInput] = useState(false);
 
-  // Inline editing state
+  // Inline editing state for nodes
   const [isEditing, setIsEditing] = useState(false);
   const [draftText, setDraftText] = useState('');
   const [draftOwner, setDraftOwner] = useState('');
@@ -68,6 +89,8 @@ export function DebtPanel({
   const metrics = getMetrics();
   const selectedNode = nodes.find((n) => n.id === selectedNodeId);
   const downstreamResult = getDownstreamOfSelected();
+
+  const pendingTasksCount = (tasks || []).filter((t) => t.status === 'proposed').length;
 
   // Automatically switch to 'node' tab when a node is selected
   useEffect(() => {
@@ -131,13 +154,39 @@ export function DebtPanel({
     );
     setShowRefuteInput(false);
     setRefuteReason('');
+    setActiveTab('tasks'); // Switch to tasks tab to see newly generated review tasks!
   };
 
+  const handleCopyMarkdown = () => {
+    const md = exportTasksToMarkdown(tasks, project);
+    navigator.clipboard.writeText(md);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2200);
+  };
+
+  const handleDownloadCSV = () => {
+    const csv = exportTasksToCSV(tasks);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `tasks-${project.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'assumption-debt'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const filteredTasks = (tasks || []).filter((t) => {
+    if (taskFilter === 'proposed') return t.status === 'proposed';
+    if (taskFilter === 'approved') return t.status === 'approved';
+    return true;
+  });
+
   return (
-    <aside className="w-full lg:w-[380px] flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full overflow-hidden shadow-sm z-10">
+    <aside className="w-full lg:w-[400px] flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full overflow-hidden shadow-sm z-10">
       {/* Top Header & Core Metrics */}
-      <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex-shrink-0">
-        <div className="flex items-center justify-between mb-2.5">
+      <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center">
               <Flame className="w-4 h-4" />
@@ -146,19 +195,19 @@ export function DebtPanel({
               <h2 className="font-bold text-xs tracking-tight text-slate-900 dark:text-slate-100">
                 Assumption Debt
               </h2>
-              <p className="text-[10px] text-slate-500 font-mono truncate max-w-[200px]">
+              <p className="text-[10px] text-slate-500 font-mono truncate max-w-[210px]">
                 {project}
               </p>
             </div>
           </div>
-          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
             Ước tính
           </span>
         </div>
 
         {/* Big numbers */}
-        <div className="grid grid-cols-2 gap-2.5 mt-2">
-          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
             <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300">
               Tổng điểm nợ rủi ro
             </div>
@@ -185,34 +234,51 @@ export function DebtPanel({
         </div>
 
         {/* Tab Bar Navigation */}
-        <div className="flex items-center gap-1 mt-3 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 text-xs font-semibold">
+        <div className="flex items-center gap-1 mt-2.5 p-1 rounded-xl bg-slate-200/60 dark:bg-slate-800/60 text-xs font-semibold">
           <button
             onClick={() => setActiveTab('risk')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition ${
+            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] ${
               activeTab === 'risk'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5 text-amber-500" />
-            <span>Rủi ro ({metrics.rankedAssumptions.length})</span>
+            <span>Rủi ro</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('tasks')}
+            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] relative ${
+              activeTab === 'tasks'
+                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            <CheckSquare className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Tasks</span>
+            {pendingTasksCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[9px] bg-rose-500 text-white font-mono font-bold">
+                {pendingTasksCount}
+              </span>
+            )}
           </button>
 
           <button
             onClick={() => setActiveTab('node')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition ${
+            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] ${
               activeTab === 'node'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
             }`}
           >
             <Sliders className="w-3.5 h-3.5 text-blue-500" />
-            <span>Chi tiết {selectedNode ? `(${selectedNode.id})` : ''}</span>
+            <span>{selectedNode ? selectedNode.id : 'Chi tiết'}</span>
           </button>
 
           <button
             onClick={() => setActiveTab('actions')}
-            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition ${
+            className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition text-[11px] ${
               activeTab === 'actions'
                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -298,7 +364,214 @@ export function DebtPanel({
         </div>
       )}
 
-      {/* Tab 2: Selected Node Inspector */}
+      {/* Tab 2: Task Generator (Phase 8) */}
+      {activeTab === 'tasks' && (
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-3">
+          {/* Action Toolbar */}
+          <div className="space-y-2 pb-2.5 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 dark:text-slate-100">
+                <CheckSquare className="w-4 h-4 text-emerald-500" />
+                <span>Task Đề Xuất ({tasks.length})</span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleCopyMarkdown}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition"
+                  title="Sao chép danh sách Task dạng Markdown Checklist"
+                >
+                  {copySuccess ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  onClick={handleDownloadCSV}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition"
+                  title="Tải về file CSV để nhập vào Jira / Excel"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => generateTasks(4)}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 transition"
+                  title="Tạo lại các task kiểm chứng từ đồ thị"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Filter pills & Bulk Approve */}
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+                <button
+                  onClick={() => setTaskFilter('all')}
+                  className={`px-2 py-0.5 rounded font-medium transition ${
+                    taskFilter === 'all'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Tất cả ({tasks.length})
+                </button>
+                <button
+                  onClick={() => setTaskFilter('proposed')}
+                  className={`px-2 py-0.5 rounded font-medium transition ${
+                    taskFilter === 'proposed'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Cần duyệt ({pendingTasksCount})
+                </button>
+                <button
+                  onClick={() => setTaskFilter('approved')}
+                  className={`px-2 py-0.5 rounded font-medium transition ${
+                    taskFilter === 'approved'
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  Đã duyệt ({tasks.filter((t) => t.status === 'approved').length})
+                </button>
+              </div>
+
+              {pendingTasksCount > 0 && (
+                <button
+                  onClick={approveAllTasks}
+                  className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                >
+                  Duyệt tất cả
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Task list */}
+          <div className="space-y-2.5">
+            {filteredTasks.length === 0 ? (
+              <div className="p-6 text-center text-slate-400 space-y-2">
+                <CheckSquare className="w-7 h-7 mx-auto opacity-30" />
+                <p className="text-xs">Chưa có task nào trong bộ lọc này.</p>
+                <button
+                  onClick={() => generateTasks(4)}
+                  className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs"
+                >
+                  Đề xuất task từ đồ thị
+                </button>
+              </div>
+            ) : (
+              filteredTasks.map((t) => {
+                const isVerification = t.type === 'verification';
+                const prioColor =
+                  t.priority === 'high'
+                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                    : t.priority === 'medium'
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                    : 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30';
+
+                return (
+                  <div
+                    key={t.id}
+                    className={`p-3 rounded-xl border text-xs transition-all space-y-2 ${
+                      t.status === 'approved'
+                        ? 'border-emerald-500/40 bg-emerald-50/20 dark:bg-emerald-950/20'
+                        : t.status === 'rejected'
+                        ? 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 opacity-60'
+                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm'
+                    }`}
+                  >
+                    {/* Header: Priority, Type & Target Node */}
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase ${prioColor}`}>
+                          {t.priority === 'high' ? 'Cao' : t.priority === 'medium' ? 'Vừa' : 'Thấp'}
+                        </span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${
+                            isVerification
+                              ? 'bg-amber-500/20 text-amber-800 dark:text-amber-200'
+                              : 'bg-rose-500/20 text-rose-800 dark:text-rose-200'
+                          }`}
+                        >
+                          {isVerification ? 'Kiểm chứng' : 'Xem lại sau Bác bỏ'}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => selectNode(t.targetNodeId)}
+                        className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-amber-500 hover:text-slate-950 transition flex items-center gap-1"
+                        title="Chọn và xem nút này trên đồ thị"
+                      >
+                        <span>{t.targetNodeId}</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+
+                    {/* Title */}
+                    <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-xs leading-snug">
+                      {t.title}
+                    </h4>
+
+                    {/* Description */}
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg leading-relaxed">
+                      &ldquo;{t.description}&rdquo;
+                    </p>
+
+                    {/* Metadata & Actions */}
+                    <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[10px] text-slate-500">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-slate-400" />
+                          {t.dueDate}
+                        </span>
+                        <span className="flex items-center gap-1 truncate max-w-[110px]">
+                          <User className="w-3 h-3 text-slate-400" />
+                          {t.suggestedAssignee}
+                        </span>
+                      </div>
+
+                      {/* Decision buttons: Approve / Reject */}
+                      <div className="flex items-center gap-1">
+                        {t.status === 'proposed' ? (
+                          <>
+                            <button
+                              onClick={() => rejectTask(t.id)}
+                              className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition"
+                            >
+                              Bỏ qua
+                            </button>
+                            <button
+                              onClick={() => approveTask(t.id)}
+                              className="px-2.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>Duyệt</span>
+                            </button>
+                          </>
+                        ) : t.status === 'approved' ? (
+                          <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Đã duyệt</span>
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => approveTask(t.id)}
+                            className="text-slate-400 hover:underline"
+                          >
+                            Khôi phục
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Selected Node Inspector */}
       {activeTab === 'node' && (
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {selectedNode ? (
@@ -518,7 +791,7 @@ export function DebtPanel({
                         rows={2}
                         value={refuteReason}
                         onChange={(e) => setRefuteReason(e.target.value)}
-                        placeholder="VD: Zalo từ chối duyệt mẫu tin dùng chung và yêu cầu từng cơ sở spa đăng ký OA riêng..."
+                        placeholder="VD: Khảo sát thực tế đối tác Napas bảo trì định kỳ ban đêm dẫn đến nghẽn giao dịch..."
                         className="w-full text-xs p-2 rounded-lg border border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-rose-500"
                         required
                       />
@@ -553,7 +826,7 @@ export function DebtPanel({
         </div>
       )}
 
-      {/* Tab 3: Fast Actions & PRD Management */}
+      {/* Tab 4: Fast Actions & PRD Management */}
       {activeTab === 'actions' && (
         <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
           <div className="p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-2">
