@@ -28,3 +28,4 @@ Enforces the human-in-the-loop principle: **the system proposes, the human revie
 - `generateReviewTasks(refutedId, nodes, edges, baseDate)`: Pure function generating review tasks for all downstream nodes when an assumption is refuted.
 - `exportTasksToMarkdown(tasks, projectName)`: Generates ready-to-paste GitHub/Notion flavored Markdown checklists.
 - `exportTasksToCSV(tasks)`: Generates RFC-4180 CSV for spreadsheet and issue tracker import.
+

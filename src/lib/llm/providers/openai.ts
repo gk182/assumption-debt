@@ -3,16 +3,22 @@ import { LLMAdapter, LLMExtractOptions } from '../types';
 import { SYSTEM_PROMPT, EXTRACTION_JSON_SCHEMA } from '../prompts';
 import { ExtractionOutput, ExtractionOutputSchema } from '../../schema';
 
-function cleanJsonString(raw: string): string {
+export function cleanJsonString(raw: string): string {
   let cleaned = raw.trim();
-  if (cleaned.startsWith('```json')) {
-    cleaned = cleaned.slice(7);
-  } else if (cleaned.startsWith('```')) {
-    cleaned = cleaned.slice(3);
+  cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
-  if (cleaned.endsWith('```')) {
-    cleaned = cleaned.slice(0, -3);
-  }
+
+  let decisionsCount = 0;
+  cleaned = cleaned.replace(/"decisions"\s*:/g, (match) => {
+    decisionsCount++;
+    return decisionsCount === 1 ? match : '"tasks":';
+  });
+
   return cleaned.trim();
 }
 
@@ -56,4 +62,3 @@ export class OpenAIAdapter implements LLMAdapter {
     }
   }
 }
-

@@ -14,42 +14,63 @@ export const DecisionKindEnum = z.enum(['decision', 'feature', 'task']);
 
 export const ExtractedAssumptionSchema = z.object({
   tempId: z.string(),
-  text: z.string().max(200),
-  category: CategoryEnum.default('user_behavior'),
+  text: z.string().max(1000),
+  category: CategoryEnum.catch('user_behavior'),
   source: z.object({
     quote: z.string(),
     location: z.string().optional()
   }),
-  evidenceInDoc: EvidenceEnum.default('none'),
-  suggestedImportance: z.number().min(1).max(5).default(3),
+  evidenceInDoc: EvidenceEnum.catch('none'),
+  suggestedImportance: z.coerce.number().min(1).max(5).catch(3),
   whyItMatters: z.string().optional(),
   howToVerify: z.string().optional(),
-  verifyWithinDays: z.number().default(14)
+  verifyWithinDays: z.coerce.number().catch(14)
 });
 
 export const ExtractedDecisionSchema = z.object({
   tempId: z.string(),
   text: z.string(),
-  kind: DecisionKindEnum.default('decision'),
+  kind: DecisionKindEnum.catch('decision'),
   source: z.object({
     quote: z.string(),
     location: z.string().optional()
   }).optional(),
-  estimatedEffortWeeks: z.number().default(1)
+  estimatedEffortWeeks: z.coerce.number().catch(1)
 });
 
 export const ExtractedLinkSchema = z.object({
   from: z.string(),
   to: z.string(),
-  relation: z.literal('depends_on'),
+  relation: z.literal('depends_on').catch('depends_on'),
   reason: z.string().optional()
 });
 
-export const ExtractionOutputSchema = z.object({
-  assumptions: z.array(ExtractedAssumptionSchema),
-  decisions: z.array(ExtractedDecisionSchema),
-  links: z.array(ExtractedLinkSchema)
-});
+export const ExtractionOutputSchema = z
+  .object({
+    assumptions: z.array(ExtractedAssumptionSchema),
+    decisions: z.array(ExtractedDecisionSchema),
+    tasks: z.array(ExtractedDecisionSchema).optional(),
+    links: z.array(ExtractedLinkSchema)
+  })
+  .transform((data) => {
+    if (data.tasks && data.tasks.length > 0) {
+      const existingIds = new Set(data.decisions.map((d) => d.tempId));
+      const mergedDecisions = [
+        ...data.decisions,
+        ...data.tasks.filter((t) => !existingIds.has(t.tempId))
+      ];
+      return {
+        assumptions: data.assumptions,
+        decisions: mergedDecisions,
+        links: data.links
+      };
+    }
+    return {
+      assumptions: data.assumptions,
+      decisions: data.decisions,
+      links: data.links
+    };
+  });
 
 export type ExtractedAssumption = z.infer<typeof ExtractedAssumptionSchema>;
 export type ExtractedDecision = z.infer<typeof ExtractedDecisionSchema>;

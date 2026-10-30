@@ -166,3 +166,4 @@ export function getFormattedHistory(node: GraphNode): NodeHistoryEvent[] {
     return new Date(b.at).getTime() - new Date(a.at).getTime();
   });
 }
+

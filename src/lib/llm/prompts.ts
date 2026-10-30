@@ -21,6 +21,7 @@ Detailed Guidelines:
 3. Tasks / Sprints (tempId: t1, t2, ...):
    - Extract 3 to 8 concrete implementation sprints, milestones, or technical work items (e.g. "Sprint 1: Nhắc lịch Zalo + SMS fallback", "Sprint 2: Cấu hình cọc, VietQR, đối soát", "Sprint 3: Báo cáo no-show & beta 40 cơ sở").
    - Set kind: "task".
+   - Can be placed in the "decisions" array or "tasks" array.
    - Assign estimatedEffortWeeks (typically 1 to 4 weeks).
 
 4. Dependency Links (links):
@@ -72,6 +73,26 @@ export const EXTRACTION_JSON_SCHEMA = {
           tempId: { type: 'string', description: 'e.g. d1, t1' },
           text: { type: 'string' },
           kind: { type: 'string', enum: ['decision', 'feature', 'task'] },
+          source: {
+            type: 'object',
+            properties: {
+              quote: { type: 'string' },
+              location: { type: 'string' }
+            }
+          },
+          estimatedEffortWeeks: { type: 'number' }
+        },
+        required: ['tempId', 'text', 'kind', 'estimatedEffortWeeks']
+      }
+    },
+    tasks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          tempId: { type: 'string', description: 'e.g. t1, t2' },
+          text: { type: 'string' },
+          kind: { type: 'string', enum: ['task'] },
           source: {
             type: 'object',
             properties: {
