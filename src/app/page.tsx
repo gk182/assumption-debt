@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGraphStore } from '@/lib/store';
 import {
@@ -14,49 +14,40 @@ import {
   Cpu,
   Key,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  GitBranch,
+  Layers,
+  Flame,
+  CheckCircle2,
+  ExternalLink
 } from 'lucide-react';
 import { LLMProvider, PROVIDER_CONFIGS } from '@/lib/llm/types';
 import { SAMPLE_DOCS, extractProjectTitleFromDoc } from '@/lib/sampleDocs';
 
-const SAMPLE_PRD = `# PRD: Chi ho tuc thi va Ung von ban hang (Instant Merchant Advance v1.0)
+const SAMPLE_PRD = `# PRD: Chi hộ tức thì và Ứng vốn bán hàng (Instant Merchant Advance v1.0)
 
-## 1. Boi canh va Bai toan (Problem Statement)
-Hien nay, nha ban le (SMB Merchants) tren nen tang cua chung ta dang phai cho chu ky doi soat doanh thu dinh ky T+3 (sau 3 ngay ke tu khi don giao thanh cong). Dieu nay khien nha ban hang gap kho khan ve dong tien nhap hang.
-Giai phap: Ra mat tinh nang Chi ho tuc thi va Ung truoc doanh thu, cho phep nguoi ban rut ngay 85% gia tri don hang ngay sau khi don chuyen sang trang thai giao thanh cong.
+## 1. Bối cảnh và Bài toán (Problem Statement)
+Hiện nay, nhà bán lẻ (SMB Merchants) trên nền tảng của chúng ta đang phải chờ chu kỳ đối soát doanh thu định kỳ T+3 (sau 3 ngày kể từ khi đơn giao thành công). Điều này khiến nhà bán hàng gặp khó khăn về dòng tiền nhập hàng.
+Giải pháp: Ra mắt tính năng Chi hộ tức thì và Ứng trước doanh thu, cho phép người bán rút ngay 85% giá trị đơn hàng ngay sau khi đơn chuyển sang trạng thái giao thành công.
 
-## 2. Mo hinh doanh thu va Phi dich vu
-Ap dung muc phi dich vu co dinh 1.2% tren so tien rut som. Muc phi nay la hoan toan hop ly voi nha ban le vi ho san sang tra phi thap hon lai suat vay nong de xoay vong von nhanh.
-Mien phi 3 giao dich dau tien cho nha ban moi de tao thoi quen su dung.
-Sprint 1: Tich hop API Cong Napas247 va Xay dung he thong giai ngan tu dong 24/7.
+## 2. Mô hình doanh thu và Phí dịch vụ
+Áp dụng mức phí dịch vụ cố định 1.2% trên số tiền rút sớm. Mức phí này là hoàn toàn hợp lý với nhà bán lẻ vì họ sẵn sàng trả phí thấp hơn lãi suất vay nóng để xoay vòng vốn nhanh.
+Miễn phí 3 giao dịch đầu tiên cho nhà bán mới để tạo thói quen sử dụng.
+Sprint 1: Tích hợp API Cổng Napas247 và Xây dựng hệ thống giải ngân tự động 24/7.
 
-## 3. Tham dinh va Quan tri rui ro (Risk Engine)
-Tu dong phe duyet han muc ung tien dua tren lich su giao dich 45 ngay gan nhat ma khong can nop sao ke ngan hang.
-Ty le gian lan don ao se khong dang ke vi chung ta chi giai ngan cho cac don hang duoc van chuyen boi cac don vi van chuyen uy tin.
-Sprint 2: Xay dung Risk Scoring Engine tu dong tinh han muc dua tren lich su 45 ngay.
+## 3. Thẩm định và Quản trị rủi ro (Risk Engine)
+Tự động phê duyệt hạn mức ứng tiền dựa trên lịch sử giao dịch 45 ngày gần nhất mà không cần nộp sao kê ngân hàng.
+Tỷ lệ gian lận đơn ảo sẽ không đáng kể vì chúng ta chỉ giải ngân cho các đơn hàng được vận chuyển bởi các đơn vị vận chuyển uy tín.
+Sprint 2: Xây dựng Risk Scoring Engine tự động tính hạn mức dựa trên lịch sử 45 ngày.
 
-## 4. Ha tang Ky thuat va Thanh toan
-Ket noi truc tiep vao Cong Napas247 de tu dong chuyen tien 24/7. Ha tang API ngan hang doi tac chac chan se duy tri do kha dung 99.9% va khong gap nghen lenh vao ban dem.
-Sprint 3: Thiet ke UI UX Vi doi tac va Luong rut tien 1 cham tren Merchant Portal.
+## 4. Hạ tầng Kỹ thuật và Thanh toán
+Kết nối trực tiếp vào Cổng Napas247 để tự động chuyển tiền 24/7. Hạ tầng API ngân hàng đối tác chắc chắn sẽ duy trì độ khả dụng 99.9% và không gặp nghẽn lệnh vào ban đêm.
+Sprint 3: Thiết kế UI/UX Ví đối tác và Luồng rút tiền 1 chạm trên Merchant Portal.
 
-## 5. Thu hoi no va Bao hiem
-Khong trien khai mua bao hiem tin dung Credit Insurance trong giai doan v1 de bao ve bien loi nhuan rong tren 40%.
-Tu dong khau tru tien no goc tu cac don hang phat sinh tiep theo. Nguoi ban se tiep tuc duy tri gian hang va phat sinh don hang deu dan de hoan tra khoan ung.
-Sprint 4: Module tu dong thu hoi no goi dau tu don hang phat sinh tiep theo.`;
-
-function extractProjectTitle(docText: string): string {
-  const lines = docText.split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('# ')) {
-      return trimmed.replace(/^#\s*(PRD:\s*)?/, '').trim();
-    }
-    if (trimmed.startsWith('PRD:') || trimmed.startsWith('Dự án:') || trimmed.startsWith('Project:')) {
-      return trimmed.replace(/^(PRD:|Dự án:|Project:)\s*/, '').trim();
-    }
-  }
-  return 'Dự án trích xuất mới';
-}
+## 5. Thu hồi nợ và Bảo hiểm
+Không triển khai mua bảo hiểm tín dụng Credit Insurance trong giai đoạn v1 để bảo vệ biên lợi nhuận ròng trên 40%.
+Tự động khấu trừ tiền nợ gốc từ các đơn hàng phát sinh tiếp theo. Người bán sẽ tiếp tục duy trì gian hàng và phát sinh đơn hàng đều đặn để hoàn trả khoản ứng.
+Sprint 4: Module tự động thu hồi nợ gối đầu từ đơn hàng phát sinh tiếp theo.`;
 
 export default function PasteExtractPage() {
   const router = useRouter();
@@ -65,19 +56,19 @@ export default function PasteExtractPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Biến bật tắt flow: true = Product (gọi AI thật), false = Mockup (dữ liệu mẫu)
+  // Flow mode: true = Product (AI), false = Mockup (Offline)
   const [isProductFlow, setIsProductFlow] = useState<boolean>(() => {
     return process.env.NEXT_PUBLIC_ENABLE_PRODUCT_FLOW !== 'false';
   });
 
-  // Chọn Provider & Model
+  // Multi-LLM provider & model
   const [selectedProvider, setSelectedProvider] = useState<LLMProvider>('gemini');
   const [selectedModel, setSelectedModel] = useState<string>(PROVIDER_CONFIGS.gemini.defaultModel);
   const [customApiKey, setCustomApiKey] = useState<string>('');
   const [showKeyAccordion, setShowKeyAccordion] = useState<boolean>(false);
 
-  // Khôi phục API Key từ localStorage
-  React.useEffect(() => {
+  // Restore API key from localStorage
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('assumption_debt_api_key');
       if (saved) setCustomApiKey(saved);
@@ -166,133 +157,130 @@ export default function PasteExtractPage() {
   const currentProviderConfig = PROVIDER_CONFIGS[selectedProvider];
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
-      {/* Top Navigation */}
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-3.5 flex items-center justify-between">
+    <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans selection:bg-neutral-900 selection:text-white dark:selection:bg-white dark:selection:text-black">
+      {/* Vercel Navigation Bar */}
+      <header className="h-14 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#000000] px-6 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-base shadow-sm">
-            Δ
+          <div className="w-7 h-7 rounded-md bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-xs shadow-sm">
+            ▲
           </div>
-          <div>
-            <h1 className="font-bold text-sm tracking-tight leading-tight">
+          <div className="flex items-baseline gap-2">
+            <h1 className="font-semibold text-xs tracking-tight text-neutral-900 dark:text-neutral-100">
               Assumption Debt
             </h1>
-            <p className="text-[11px] text-slate-500">
-              Quản lý nợ giả định & cảnh báo rủi ro sản phẩm
-            </p>
+            <span className="text-[10px] text-neutral-400 font-mono hidden sm:inline">
+              v1.0.0
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleDirectToGraph}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a] hover:bg-neutral-100 dark:hover:bg-neutral-900 transition text-neutral-800 dark:text-neutral-200"
           >
-            <Database className="w-3.5 h-3.5 text-amber-500" />
-            <span>Mở ngay Đồ thị Demo</span>
+            <Database className="w-3.5 h-3.5 text-neutral-500" />
+            <span>Mở Đồ Thị Demo</span>
           </button>
         </div>
       </header>
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-6 md:p-8 flex flex-col justify-center">
-        <div className="mb-6">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 mb-3">
-            <Sparkles className="w-3.5 h-3.5" /> Bước 1: Trích xuất giả định từ tài liệu
+      {/* Hero Section */}
+      <div className="w-full border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#000000] py-14 px-6">
+        <div className="max-w-4xl mx-auto flex flex-col items-start">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono font-medium bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-800 mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span>ASSUMPTION DEBT ENGINE · 100% VERBATIM QUOTES</span>
           </div>
-          <h2 className="text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-50">
-            Khám phá những giả định ngầm chưa được kiểm chứng
+
+          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-neutral-950 dark:text-neutral-50 leading-[1.15] max-w-2xl">
+            Định lượng & cảnh báo rủi ro từ những giả định chưa kiểm chứng
           </h2>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">
-            Dán tài liệu PRD, tài liệu kiến trúc (ADR), ticket hoặc biên bản họp. Hệ thống sẽ bóc tách các giả định, 
-            liên kết với quyết định phụ thuộc, và đảm bảo <strong>100% trích dẫn nguyên văn</strong> từ văn bản gốc.
+
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-3 max-w-2xl leading-relaxed">
+            Dán tài liệu PRD, tài liệu kiến trúc (ADR), ticket hoặc biên bản họp. Hệ thống bóc tách các giả định nền tảng,
+            dựng cây phụ thuộc các quyết định và tính toán số tuần công việc có nguy cơ bị lãng phí khi một giả định bị bác bỏ.
           </p>
-        </div>
 
-        {/* Biến bật/tắt Flow: Mockup vs Product Flow */}
-        <div className="mb-4 p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div
-              className={`p-2.5 rounded-xl flex-shrink-0 transition-colors ${
-                isProductFlow
-                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300'
-                  : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300'
-              }`}
-            >
-              {isProductFlow ? <Sparkles className="w-5 h-5" /> : <FlaskConical className="w-5 h-5" />}
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-3 gap-6 pt-8 mt-6 border-t border-neutral-100 dark:border-neutral-900 w-full max-w-xl text-left">
+            <div>
+              <div className="font-mono text-xl font-semibold text-neutral-900 dark:text-neutral-100">0%</div>
+              <div className="text-[11px] text-neutral-400 mt-0.5">Hallucination (chặn bịa)</div>
             </div>
+            <div>
+              <div className="font-mono text-xl font-semibold text-neutral-900 dark:text-neutral-100">&lt; 3.0s</div>
+              <div className="text-[11px] text-neutral-400 mt-0.5">Thời gian trích xuất AI</div>
+            </div>
+            <div>
+              <div className="font-mono text-xl font-semibold text-neutral-900 dark:text-neutral-100">1-Click</div>
+              <div className="text-[11px] text-neutral-400 mt-0.5">Mô phỏng sụp đổ dây chuyền</div>
+            </div>
+          </div>
+        </div>
+      </div>
 
+      {/* Main Workspace Form */}
+      <main className="flex-1 max-w-4xl w-full mx-auto p-6 md:p-8 flex flex-col">
+        {/* Mode Selector (Product AI vs Mockup Offline) */}
+        <div className="mb-4 p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-md bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-900 dark:text-neutral-100 font-bold">
+              {isProductFlow ? <Sparkles className="w-4 h-4" /> : <FlaskConical className="w-4 h-4" />}
+            </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
-                  {isProductFlow ? 'Chế độ: Product Flow (Gọi AI thật)' : 'Chế độ: Mockup Flow (Chạy dữ liệu mẫu để test)'}
+                <span className="font-medium text-xs text-neutral-900 dark:text-neutral-100">
+                  {isProductFlow ? 'Chế độ AI Thật (Live LLM)' : 'Chế độ Mockup Demo (Offline)'}
                 </span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                    isProductFlow
-                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                      : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
-                  }`}
-                >
-                  {isProductFlow ? 'Live Multi-LLM' : 'Mockup Offline'}
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-800">
+                  {isProductFlow ? 'Active' : 'Offline'}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
+              <p className="text-[11px] text-neutral-500 mt-0.5">
                 {isProductFlow
-                  ? 'Gửi văn bản tới mô hình AI (hỗ trợ chọn Gemini, Claude, OpenAI) để trích xuất thời gian thực.'
-                  : 'Sử dụng file mẫu có sẵn (data/demo/extraction-cached.json) giúp test trọn vẹn mọi tính năng 100% offline.'}
+                  ? 'Gửi văn bản tới Gemini / Claude / GPT để phân tích giả định và quan hệ phụ thuộc.'
+                  : 'Sử dụng dữ liệu mẫu Merchant Advance có sẵn để trải nghiệm đồ thị 100% không cần API key.'}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
-            <span className="text-xs font-medium text-slate-500">
-              {isProductFlow ? 'Bật AI' : 'Dùng Mockup'}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setIsProductFlow(!isProductFlow);
-                setErrorMsg(null);
-              }}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                isProductFlow ? 'bg-purple-600 focus:ring-purple-500' : 'bg-emerald-600 focus:ring-emerald-500'
-              }`}
-              title="Nhấn để chuyển đổi giữa Mockup và Product Flow"
-            >
-              <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${
-                  isProductFlow ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsProductFlow(!isProductFlow);
+              setErrorMsg(null);
+            }}
+            className="self-end sm:self-center text-xs font-medium px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
+          >
+            {isProductFlow ? 'Chuyển sang Mockup' : 'Chuyển sang AI Thật'}
+          </button>
         </div>
 
-        {/* Khung cấu hình Multi-Model khi bật Product Flow */}
+        {/* AI Configuration Panel */}
         {isProductFlow && (
-          <div className="mb-4 p-4 rounded-2xl border border-purple-200 dark:border-purple-900/60 bg-purple-50/50 dark:bg-purple-950/20 space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="mb-4 p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a] space-y-3.5 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-purple-900 dark:text-purple-200">
-                <Cpu className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span>Tùy chọn mô hình AI (Multi-Model Support)</span>
+              <div className="flex items-center gap-2 text-xs font-medium text-neutral-900 dark:text-neutral-100">
+                <Cpu className="w-4 h-4 text-neutral-500" />
+                <span>Cấu hình Mô hình Ngôn ngữ (LLM Provider)</span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowKeyAccordion(!showKeyAccordion)}
-                className="text-[11px] text-purple-700 dark:text-purple-300 flex items-center gap-1 hover:underline"
+                className="text-[11px] text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center gap-1"
               >
                 <Key className="w-3.5 h-3.5" />
-                <span>{showKeyAccordion ? 'Ẩn ô nhập API Key' : 'Tùy chỉnh API Key riêng'}</span>
+                <span>{showKeyAccordion ? 'Ẩn ô nhập API Key' : 'Tùy chỉnh API Key'}</span>
                 {showKeyAccordion ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Chọn Nhà cung cấp */}
+              {/* Provider Selection */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Nhà cung cấp AI:
+                <label className="block text-[11px] font-mono text-neutral-500 mb-1">
+                  Nhà cung cấp:
                 </label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {(['gemini', 'anthropic', 'openai'] as LLMProvider[]).map((p) => {
@@ -303,10 +291,10 @@ export default function PasteExtractPage() {
                         key={p}
                         type="button"
                         onClick={() => handleProviderChange(p)}
-                        className={`text-xs py-1.5 px-2 rounded-lg font-semibold transition border text-center ${
+                        className={`text-xs py-1.5 px-2 rounded-md font-medium transition border text-center ${
                           isSelected
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-purple-300'
+                            ? 'bg-black text-white dark:bg-white dark:text-black border-transparent shadow-sm'
+                            : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100'
                         }`}
                       >
                         {cfg.name.replace('Google ', '').replace('Anthropic ', '')}
@@ -316,15 +304,15 @@ export default function PasteExtractPage() {
                 </div>
               </div>
 
-              {/* Chọn Model cụ thể */}
+              {/* Model Selection */}
               <div>
-                <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-[11px] font-mono text-neutral-500 mb-1">
                   Mô hình ({currentProviderConfig.name}):
                 </label>
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full text-xs py-1.5 px-2.5 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 font-mono"
+                  className="w-full text-xs py-1.5 px-2.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white font-mono"
                 >
                   {currentProviderConfig.availableModels.map((m) => (
                     <option key={m} value={m}>
@@ -335,42 +323,43 @@ export default function PasteExtractPage() {
               </div>
             </div>
 
-            {/* Ô nhập API Key tùy chọn nếu không muốn sửa .env.local */}
+            {/* Optional API Key Input */}
             {showKeyAccordion && (
-              <div className="pt-2 border-t border-purple-200/60 dark:border-purple-900/40">
-                <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Nhập API Key {currentProviderConfig.name} (Tùy chọn - nếu bỏ trống sẽ đọc từ .env.local):
+              <div className="pt-2 border-t border-neutral-100 dark:border-neutral-900">
+                <label className="block text-[11px] text-neutral-500 mb-1">
+                  Nhập {currentProviderConfig.name} API Key (Tùy chọn - nếu để trống sẽ đọc từ .env.local):
                 </label>
                 <input
                   type="password"
                   value={customApiKey}
                   onChange={(e) => setCustomApiKey(e.target.value)}
-                  placeholder={`Ví dụ: ${currentProviderConfig.envKeyName}=...`}
-                  className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                  placeholder={`Nhập API key...`}
+                  className="w-full text-xs p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-mono placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
                 />
               </div>
             )}
           </div>
         )}
 
-        {/* Input Form */}
+        {/* Input Text Form */}
         <form onSubmit={handleExtract} className="space-y-4">
-          <div className="relative rounded-2xl border-2 border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition">
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5 font-medium">
-                <FileText className="w-4 h-4 text-slate-400" /> Văn bản tài liệu đầu vào
+          <div className="relative rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a] shadow-sm focus-within:border-neutral-400 dark:focus-within:border-neutral-600 transition">
+            {/* Presets header */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-900 text-xs text-neutral-500">
+              <span className="flex items-center gap-1.5 font-medium text-neutral-800 dark:text-neutral-200">
+                <FileText className="w-3.5 h-3.5 text-neutral-400" /> Văn bản tài liệu đầu vào
               </span>
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] text-slate-400">Nạp nhanh mẫu:</span>
+                <span className="text-[11px] text-neutral-400">Nạp nhanh mẫu:</span>
                 {SAMPLE_DOCS.map((doc) => (
                   <button
                     key={doc.id}
                     type="button"
                     onClick={() => handleLoadPreset(doc.id)}
-                    className={`text-[11px] px-2 py-0.5 rounded font-semibold transition ${
+                    className={`text-[11px] px-2 py-0.5 rounded-md font-medium transition border ${
                       selectedDocId === doc.id
-                        ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        ? 'bg-black text-white dark:bg-white dark:text-black border-transparent'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900'
                     }`}
                   >
                     {doc.id === 'bookspa' ? 'BookSpa v2.3' : doc.id === 'merchant-advance' ? 'Merchant Advance' : 'Redis ADR'}
@@ -379,29 +368,32 @@ export default function PasteExtractPage() {
               </div>
             </div>
 
+            {/* Document Textarea */}
             <textarea
               rows={11}
               value={docText}
               onChange={(e) => setDocText(e.target.value)}
               placeholder="Dán nội dung PRD, kế hoạch sprint hoặc tài liệu thiết kế vào đây..."
-              className="w-full p-4 text-sm bg-transparent border-0 focus:outline-none resize-none font-mono text-slate-800 dark:text-slate-200 placeholder:text-slate-400"
+              className="w-full p-4 text-xs bg-transparent border-0 focus:outline-none resize-none font-mono text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 leading-relaxed"
               required
             />
 
-            <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-950/40 border-t border-slate-200 dark:border-slate-800 rounded-b-2xl flex items-center justify-between text-xs text-slate-500">
-              <span className="flex items-center gap-1 text-[11px]">
+            {/* Textarea Footer info */}
+            <div className="px-4 py-2 bg-neutral-50 dark:bg-neutral-900/40 border-t border-neutral-100 dark:border-neutral-900 rounded-b-xl flex items-center justify-between text-xs text-neutral-500">
+              <span className="flex items-center gap-1.5 text-[11px]">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
                 {isProductFlow
-                  ? `Đang dùng ${currentProviderConfig.name} (${selectedModel}). Quote 100% nguyên văn.`
-                  : 'Chế độ Mockup: Nạp kết quả giả định mẫu hoàn chỉnh để test không cần API key.'}
+                  ? `Đang dùng ${currentProviderConfig.name} (${selectedModel}). Trích dẫn nguyên văn 100%.`
+                  : 'Chế độ Mockup: Nạp sẵn dữ liệu demo offline tức thì.'}
               </span>
-              <span>{docText.length} ký tự</span>
+              <span className="font-mono text-[11px]">{docText.length} ký tự</span>
             </div>
           </div>
 
+          {/* Error Message */}
           {errorMsg && (
-            <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-200 space-y-1">
-              <div className="font-bold flex items-center gap-1.5">
+            <div className="p-3.5 rounded-md bg-rose-500/10 border border-rose-500/20 text-xs text-rose-700 dark:text-rose-400 space-y-1">
+              <div className="font-semibold flex items-center gap-1.5">
                 <Info className="w-4 h-4 text-rose-600" />
                 Thông báo:
               </div>
@@ -409,38 +401,74 @@ export default function PasteExtractPage() {
             </div>
           )}
 
+          {/* Action Footer */}
           <div className="flex items-center justify-between pt-2">
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-neutral-500 font-mono">
               {isProductFlow
-                ? `Mô hình: ${currentProviderConfig.name} (${selectedModel})`
-                : 'Đang dùng Mockup Flow. Sẽ nạp file mẫu offline ngay lập tức.'}
+                ? `${currentProviderConfig.name} · ${selectedModel}`
+                : 'Offline Mockup Flow'}
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition disabled:opacity-50 ${
-                isProductFlow
-                  ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                  : 'bg-amber-500 hover:bg-amber-600 text-slate-950'
-              }`}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-md font-semibold text-xs bg-black text-white dark:bg-white dark:text-black hover:opacity-90 disabled:opacity-50 transition shadow-sm"
             >
               {isLoading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  <span>Đang trích xuất với {selectedProvider}...</span>
+                  <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <span>Đang bóc tách giả định...</span>
                 </>
               ) : (
                 <>
                   <span>
                     {isProductFlow ? `Trích xuất bằng ${currentProviderConfig.name}` : 'Trích xuất Giả định (Mockup)'}
                   </span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}
             </button>
           </div>
         </form>
+
+        {/* Feature Cards Grid (Vercel Style) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-12 pt-8 border-t border-neutral-200 dark:border-neutral-800">
+          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a]">
+            <div className="w-7 h-7 rounded-md bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-900 dark:text-neutral-100 font-bold mb-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            </div>
+            <h3 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+              100% Trích dẫn nguyên văn
+            </h3>
+            <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+              Bộ lọc chống bịa (`filterHallucinations`) tự động loại bỏ bất kỳ giả định nào không tìm thấy câu văn nguyên bản trong tài liệu gốc.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a]">
+            <div className="w-7 h-7 rounded-md bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-900 dark:text-neutral-100 font-bold mb-2.5">
+              <GitBranch className="w-4 h-4 text-[#0070f3]" />
+            </div>
+            <h3 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+              Sụp đổ dây chuyền (Cascade)
+            </h3>
+            <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+              Tính toán thuật toán duyệt đồ thị (BFS) để xác định tức thì những quyết định và sprint task nào buộc phải xem xét lại khi giả định sai.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a]">
+            <div className="w-7 h-7 rounded-md bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center text-neutral-900 dark:text-neutral-100 font-bold mb-2.5">
+              <Flame className="w-4 h-4 text-[#f5a623]" />
+            </div>
+            <h3 className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+              Xếp hạng Nợ Giả Định
+            </h3>
+            <p className="text-[11px] text-neutral-500 mt-1 leading-relaxed">
+              Công thức Risk Score tính toán dựa trên tầm quan trọng và thời gian công việc bị ảnh hưởng để đề xuất task cần đi kiểm chứng trước.
+            </p>
+          </div>
+        </div>
       </main>
     </div>
   );

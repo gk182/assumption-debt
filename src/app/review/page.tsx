@@ -9,7 +9,6 @@ import {
   Edit2,
   ArrowRight,
   Quote,
-  ShieldAlert,
   Inbox,
   Sparkles,
   CheckCheck
@@ -61,17 +60,10 @@ export default function ReviewInboxPage() {
   const [editImportance, setEditImportance] = useState(3);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // If no proposed assumptions, redirect to page.tsx or show empty state
-  useEffect(() => {
-    if (proposedAssumptions.length === 0) {
-      // Nothing to review
-    }
-  }, [proposedAssumptions]);
-
   // Keyboard shortcut support: Enter = Confirm, Backspace = Reject
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (editingId) return; // Don't trigger shortcuts while typing in input
+      if (editingId) return;
       if (proposedAssumptions.length === 0) return;
 
       const current = proposedAssumptions[activeIndex];
@@ -123,31 +115,31 @@ export default function ReviewInboxPage() {
 
   if (proposedAssumptions.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-4 shadow-sm">
-          <Inbox className="w-8 h-8" />
+      <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-neutral-900 dark:text-neutral-100 flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="w-14 h-14 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center text-neutral-700 dark:text-neutral-300 mb-4 shadow-sm">
+          <Inbox className="w-7 h-7" />
         </div>
-        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200">
+        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
           Chưa có giả định nào trong hòm thư duyệt
         </h2>
-        <p className="text-xs text-slate-500 max-w-md mt-1.5 mb-6 leading-relaxed">
-          Bạn có thể quay lại trang chủ để dán tài liệu mới, hoặc bấm nút bên dưới để nạp ngay bộ kết quả giả định mẫu (Mockup) để kiểm thử luồng duyệt.
+        <p className="text-xs text-neutral-500 max-w-md mt-1.5 mb-6 leading-relaxed">
+          Quay lại trang chủ để dán tài liệu PRD mới, hoặc bấm nút dưới đây để nạp nhanh bộ kết quả mẫu (Mockup) để kiểm thử luồng duyệt.
         </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
           <button
             onClick={handleLoadMockupSample}
             disabled={isLoadingSample}
-            className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-md transition flex items-center gap-2"
+            className="px-4 py-2 rounded-md bg-black text-white dark:bg-white dark:text-black font-semibold text-xs hover:opacity-90 shadow-sm transition flex items-center gap-2"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>{isLoadingSample ? 'Đang nạp...' : 'Nạp dữ liệu giả định mẫu (Mockup)'}</span>
+            <Sparkles className="w-3.5 h-3.5 fill-current" />
+            <span>{isLoadingSample ? 'Đang nạp...' : 'Nạp dữ liệu mẫu (Mockup)'}</span>
           </button>
 
           {nodes.length > 0 && (
             <Link
               href="/graph"
-              className="px-4 py-2.5 rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold text-xs transition"
+              className="px-3.5 py-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 font-medium text-xs transition"
             >
               Mở Đồ thị hiện tại ({nodes.length} nodes)
             </Link>
@@ -155,9 +147,9 @@ export default function ReviewInboxPage() {
 
           <Link
             href="/"
-            className="px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition"
+            className="px-3.5 py-2 rounded-md border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 font-medium text-xs transition"
           >
-            Quay lại màn Dán tài liệu
+            Quay lại trang chủ
           </Link>
         </div>
       </div>
@@ -168,32 +160,36 @@ export default function ReviewInboxPage() {
   const rejectedCount = Object.values(reviewDecisions).filter((d) => d.action === 'reject').length;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#fafafa] dark:bg-[#000000] text-neutral-900 dark:text-neutral-100 flex flex-col font-sans">
       {/* Top Header */}
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-3.5 flex items-center justify-between sticky top-0 z-20">
+      <header className="h-14 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#000000] px-6 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-3">
-          <Link href="/" className="font-bold text-sm tracking-tight hover:text-amber-500 transition">
+          <Link
+            href="/"
+            className="flex items-center gap-2 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition"
+          >
             ← Quay lại
           </Link>
-          <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
-          <div>
-            <h1 className="font-bold text-sm tracking-tight">
-              Hòm thư duyệt giả định (Review Inbox)
-            </h1>
-            <p className="text-[11px] text-slate-500">
-              {proposedProjectName ? (
-                <>Dự án: <span className="text-amber-600 dark:text-amber-400 font-medium">{proposedProjectName}</span></>
-              ) : (
-                'Con người quyết định: Xác nhận (Enter), Bác bỏ (Backspace), Sửa (E)'
-              )}
-            </p>
+          <div className="h-4 w-px bg-neutral-200 dark:border-neutral-800" />
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-md bg-black text-white dark:bg-white dark:text-black flex items-center justify-center font-bold text-xs">
+              ▲
+            </div>
+            <div>
+              <h1 className="font-semibold text-xs text-neutral-900 dark:text-neutral-100">
+                Hòm Thư Duyệt Giả Định (Review Inbox)
+              </h1>
+              <p className="text-[10px] text-neutral-500 font-mono">
+                {proposedProjectName ? `Dự án: ${proposedProjectName}` : 'Con người quyết định · AI chỉ đề xuất'}
+              </p>
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handleConfirmAll}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
           >
             <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
             <span>Xác nhận tất cả</span>
@@ -201,18 +197,18 @@ export default function ReviewInboxPage() {
 
           <button
             onClick={() => handleFinalize(false)}
-            className="hidden md:flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-            title="Thêm các mục đã duyệt vào đồ thị hiện có mà không xóa đồ thị cũ"
+            className="hidden md:flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition"
+            title="Nối thêm các mục đã duyệt vào đồ thị hiện có"
           >
-            <span>Nối thêm vào đồ thị cũ</span>
+            <span>Nối vào đồ thị cũ</span>
           </button>
 
           <button
             onClick={() => handleFinalize(true)}
-            className="flex items-center gap-1.5 text-xs font-bold px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-950 shadow transition"
+            className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-md bg-black text-white dark:bg-white dark:text-black hover:opacity-90 shadow-sm transition"
             title="Tạo mới toàn bộ đồ thị theo tài liệu vừa trích xuất"
           >
-            <span>Tạo Đồ thị Mới ({confirmedCount})</span>
+            <span>Dựng Đồ Thị Mới ({confirmedCount})</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -220,18 +216,18 @@ export default function ReviewInboxPage() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-4xl w-full mx-auto p-6 md:p-8 space-y-4">
-        <div className="flex items-center justify-between text-xs text-slate-500">
-          <div>
+        <div className="flex items-center justify-between text-xs text-neutral-500">
+          <div className="font-mono text-[11px]">
             Đang hiển thị <strong>{proposedAssumptions.length}</strong> giả định được AI đề xuất
           </div>
-          <div className="flex gap-3">
-            <span className="text-emerald-600 font-medium">Đã duyệt: {confirmedCount}</span>
-            <span className="text-rose-600 font-medium">Đã loại: {rejectedCount}</span>
+          <div className="flex gap-3 text-xs font-medium">
+            <span className="text-emerald-600">Đã duyệt: {confirmedCount}</span>
+            <span className="text-rose-600">Đã loại: {rejectedCount}</span>
           </div>
         </div>
 
         {/* Card List */}
-        <div className="space-y-3.5">
+        <div className="space-y-3">
           {proposedAssumptions.map((item, index) => {
             const decision = reviewDecisions[item.tempId];
             const isConfirmed = decision?.action === 'confirm';
@@ -252,21 +248,21 @@ export default function ReviewInboxPage() {
               <div
                 key={item.tempId}
                 onClick={() => setActiveIndex(index)}
-                className={`relative rounded-2xl p-4 border-2 transition-all ${
+                className={`relative rounded-xl p-4 border transition-all ${
                   isRejected
-                    ? 'border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/40 opacity-50'
+                    ? 'border-neutral-200 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-900/40 opacity-40'
                     : isCurrent
-                    ? 'border-amber-500 bg-white dark:bg-slate-900 shadow-md ring-2 ring-amber-500/20'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                    ? 'border-black dark:border-white bg-white dark:bg-[#0a0a0a] shadow-md ring-1 ring-black dark:ring-white'
+                    : 'border-neutral-200 dark:border-neutral-800 bg-white dark:bg-[#0a0a0a] hover:border-neutral-300 dark:hover:border-neutral-700'
                 }`}
               >
                 {/* Header row */}
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                    <span className="font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-black text-white dark:bg-white dark:text-black">
                       {item.tempId.toUpperCase()}
                     </span>
-                    <span className="text-xs font-medium text-slate-500 capitalize">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">
                       {item.category.replace('_', ' ')}
                     </span>
                   </div>
@@ -278,10 +274,10 @@ export default function ReviewInboxPage() {
                         e.stopPropagation();
                         setReviewDecision(item.tempId, 'confirm');
                       }}
-                      className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition ${
+                      className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md transition ${
                         isConfirmed
-                          ? 'bg-emerald-600 text-white shadow'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-100 hover:text-emerald-700'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-emerald-50 hover:text-emerald-700 dark:hover:bg-emerald-950/40'
                       }`}
                     >
                       <Check className="w-3.5 h-3.5" />
@@ -293,7 +289,7 @@ export default function ReviewInboxPage() {
                         e.stopPropagation();
                         startEditing(item.tempId, decision?.text || item.text, decision?.importance || item.suggestedImportance);
                       }}
-                      className="p-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition"
+                      className="p-1 rounded-md text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 hover:text-neutral-700 dark:hover:text-neutral-200 transition"
                       title="Chỉnh sửa (E)"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -304,10 +300,10 @@ export default function ReviewInboxPage() {
                         e.stopPropagation();
                         setReviewDecision(item.tempId, 'reject');
                       }}
-                      className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg transition ${
+                      className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-md transition ${
                         isRejected
-                          ? 'bg-rose-600 text-white shadow'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-100 hover:text-rose-700'
+                          ? 'bg-rose-600 text-white shadow-sm'
+                          : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/40'
                       }`}
                     >
                       <X className="w-3.5 h-3.5" />
@@ -318,24 +314,24 @@ export default function ReviewInboxPage() {
 
                 {/* Edit Form or Text */}
                 {isEditing ? (
-                  <div className="my-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 space-y-2">
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  <div className="my-2 p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 space-y-2">
+                    <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400">
                       Nội dung giả định (phải là mệnh đề có thể sai):
                     </label>
                     <input
                       type="text"
                       value={editText}
                       onChange={(e) => setEditText(e.target.value)}
-                      className="w-full text-xs p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                      className="w-full text-xs p-2 rounded-md border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
                     />
 
                     <div className="flex items-center justify-between pt-1">
                       <div className="flex items-center gap-2 text-xs">
-                        <span>Tầm quan trọng:</span>
+                        <span className="text-neutral-500">Tầm quan trọng:</span>
                         <select
                           value={editImportance}
                           onChange={(e) => setEditImportance(Number(e.target.value))}
-                          className="text-xs p-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900"
+                          className="text-xs p-1 rounded border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-black text-neutral-900 dark:text-neutral-100"
                         >
                           <option value={1}>1 - Thấp</option>
                           <option value={2}>2 - Vừa</option>
@@ -347,35 +343,35 @@ export default function ReviewInboxPage() {
 
                       <button
                         onClick={() => saveEdit(item.tempId)}
-                        className="text-xs px-3 py-1 bg-amber-500 font-bold text-slate-950 rounded-lg hover:bg-amber-600"
+                        className="text-xs px-3 py-1 bg-black text-white dark:bg-white dark:text-black font-semibold rounded-md hover:opacity-90"
                       >
                         Lưu thay đổi
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 my-1.5 leading-snug">
+                  <p className="text-xs font-semibold text-neutral-900 dark:text-neutral-100 my-1.5 leading-snug">
                     {decision?.text || item.text}
                   </p>
                 )}
 
                 {/* Verbatim quote from source */}
                 {item.source?.quote && (
-                  <div className="my-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs italic text-slate-700 dark:text-slate-300 flex items-start gap-1.5">
-                    <Quote className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="my-2 p-2 rounded-md bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200/60 dark:border-neutral-800 text-[11px] italic text-neutral-600 dark:text-neutral-400 flex items-start gap-1.5">
+                    <Quote className="w-3 h-3 text-neutral-400 flex-shrink-0 mt-0.5" />
                     <span>&ldquo;{item.source.quote}&rdquo;</span>
                   </div>
                 )}
 
                 {/* Linked Decisions & Tasks hint */}
                 {linkedDecisions.length > 0 && (
-                  <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 text-xs text-slate-500">
-                    <span className="font-medium text-[11px]">Quyết định phụ thuộc vào giả định này:</span>
+                  <div className="mt-2 pt-2 border-t border-neutral-100 dark:border-neutral-900 flex items-center gap-2 text-[11px] text-neutral-500">
+                    <span className="font-mono text-[10px]">Quyết định phụ thuộc:</span>
                     <div className="flex flex-wrap gap-1">
                       {linkedDecisions.map((d) => (
                         <span
                           key={d.tempId}
-                          className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-mono text-[10px]"
+                          className="px-1.5 py-0.5 rounded bg-[#0070f3]/10 text-[#0070f3] font-mono text-[10px] border border-[#0070f3]/20"
                         >
                           {d.tempId.toUpperCase()}: {d.text}
                         </span>
@@ -391,4 +387,3 @@ export default function ReviewInboxPage() {
     </div>
   );
 }
-
