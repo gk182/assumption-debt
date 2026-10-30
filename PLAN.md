@@ -21,6 +21,11 @@ Mục tiêu: demo 2 phút chạy được, và có số liệu thật cho câu h
 | **11. Nhiều tài liệu (mới)** | 1 ngày | Gộp nhiều tài liệu vào một đồ thị, bộ lọc | `assumption-extractor`, `graph-ui` |
 | **12. Độ bền và riêng tư (mới)** | 1 ngày | Xử lý lỗi, cảnh báo dữ liệu, truy cập | `code-review`, `frontend-design` |
 | **13. Tích hợp (mới, sau cổng)** | tùy | Đẩy task sang GitHub/Jira/Lark/Linear | `system-design` |
+| **14. Đa người dùng & Cloud DB (SaaS)** | 1-2 tuần | PostgreSQL, Auth, Workspace, Server CRUD | `architecture`, `system-design` |
+| **15. Ingestion Không ma sát (SaaS)** | 1 tuần | Kéo thả PDF/MD, sync Notion & Google Docs | `assumption-extractor` |
+| **16. Tích hợp Vòng lặp (SaaS Moat)** | 1-2 tuần | Linear & Jira 2-way sync, Slack bot cảnh báo | `system-design`, `impact-propagation` |
+| **17. Quản trị & Đo lường (SaaS)** | 1 tuần | Biểu đồ nợ giả định, Audit trail, Velocity | `graph-ui`, `frontend-design` |
+| **18. Thương mại hóa & Doanh nghiệp** | 1-2 tuần | Stripe billing, Seat-based pricing, SSO/SAML | `architecture` |
 
 ## Phase 0: Khởi tạo (0.5 ngày)
 - [x] Next.js (TS, Tailwind, App Router) vào thư mục này, giữ nguyên `.agents/`, `.claude/`, `data/`, `docs/`
@@ -151,6 +156,51 @@ Thứ tự đề xuất, mỗi bước độc lập:
 - [ ] Theo dõi tín hiệu ngoài (changelog API, kết quả A/B) để **gợi ý** giả định có thể đã sai, vẫn do người quyết định
 - [ ] Hạn kiểm chứng (TTL) và nhắc nhở qua email/Slack
 - Done when: một giả định tạo được issue thật, issue có link ngược.
+
+---
+
+# PHẦN THƯƠNG MẠI HÓA (B2B SaaS Transition - Tiếp nối sau Phase 11 & 13)
+> Chi tiết kiến trúc & database schema xem tại: `docs/commercial_plan.md`
+
+## Phase 14: Đa người dùng & Lưu trữ Đám mây (Multi-tenant DB & Auth - 1-2 tuần)
+Lý do: Thoát khỏi giới hạn localStorage để nhiều người trong cùng tổ chức/team có thể cùng làm việc trên một dự án.
+- [ ] Thiết lập PostgreSQL (Supabase / Neon) với Drizzle ORM hoặc Prisma
+- [ ] Schema đa người dùng: `Organization` -> `Workspace` -> `Project` -> `Document` -> `Nodes` & `Edges` (xem `docs/commercial_plan.md`)
+- [ ] Tích hợp xác thực (Auth): Clerk hoặc Supabase Auth (hỗ trợ Google Workspace / GitHub OAuth)
+- [ ] API CRUD đồng bộ đồ thị từ Zustand lên Cloud DB; duy trì fallback offline cho chế độ demo
+- Done when: Đăng nhập tài khoản trên máy A, mở trên máy B thấy đúng đồ thị và trạng thái đã lưu.
+
+## Phase 15: Nạp Dữ liệu Không ma sát (Zero-Friction Ingestion - 1 tuần)
+Lý do: Xóa bỏ hoàn toàn thao tác copy-paste thủ công vốn làm giảm retention của người dùng thực tế.
+- [ ] Kéo thả file trực tiếp (.pdf, .docx, .md) kèm parser trích xuất văn bản tự động
+- [ ] Tích hợp Notion API & Google Docs API qua OAuth2 để chọn tài liệu PRD trực tiếp
+- [ ] GitHub App / Action: Tự động quét file Architecture Decision Record (`docs/adr/*.md`) hoặc mô tả PR khi mở Pull Request
+- [ ] Async Job Queue (Inngest / BullMQ) để xử lý tài liệu dài trong nền không bị timeout HTTP
+- Done when: Kéo 1 file PDF hoặc chọn 1 trang Notion, hệ thống tự trích xuất và đưa vào Hòm thư duyệt.
+
+## Phase 16: Tích hợp Vòng lặp & Hệ sinh thái (SaaS Moat - Linear/Jira & Slack - 1-2 tuần)
+Lý do: Tạo rào cản phòng thủ bằng việc can thiệp trực tiếp vào quy trình làm việc hàng ngày của nhóm dev/PM.
+- [ ] Tích hợp Linear API & Jira REST API v3:
+  - [ ] Nút 1-click đẩy Verification Tasks thành ticket trên Jira/Linear kèm link ngược về Assumption Debt
+  - [ ] **Cascade Sync:** Khi một Assumption bị Bác bỏ (Refuted) -> tự động gắn cờ rủi ro `[ASSUMPTION FAILED]` hoặc cảnh báo trên các ticket Jira/Linear phụ thuộc
+- [ ] Slack App / Bot:
+  - [ ] Báo cáo định kỳ tuần "Weekly Assumption Debt" về kênh dự án
+  - [ ] Cảnh báo tức thì khi giả định quan trọng bị quá hạn kiểm chứng (`verifyBy`) hoặc bị bác bỏ
+- Done when: Bác bỏ A1 trên app -> Slack thông báo ngay lập tức và ticket liên quan trên Jira/Linear nhận cờ cảnh báo.
+
+## Phase 17: Bảng điều khiển Quản trị & Phân tích (Analytics & Governance - 1 tuần)
+Lý do: Cung cấp con số định lượng cho lãnh đạo (VP of Product, CTO) để theo dõi nợ giả định qua các sprint.
+- [ ] Biểu đồ Giảm nợ giả định (Assumption Debt Burn-down Chart) theo quý/sprint
+- [ ] Vận tốc kiểm chứng (Verification Velocity): Thời gian trung bình để xác thực hoặc bác bỏ một giả định
+- [ ] Nhật ký kiểm toán (Audit Trail): Lưu vết chi tiết ai đã xác nhận, chỉnh sửa hoặc bác bỏ kèm bằng chứng
+- Done when: Xuất được báo cáo điều hành toàn diện kèm biểu đồ xu hướng rủi ro cho cuộc họp Sprint Review.
+
+## Phase 18: Thương mại hóa & Doanh nghiệp (Monetization & Enterprise - 1-2 tuần)
+Lý do: Thu phí định kỳ (SaaS Subscription) và đáp ứng tiêu chuẩn bảo mật cho khách hàng B2B.
+- [ ] Cổng thanh toán Stripe (Gói Free, Gói Team $15-$20/seat/tháng, Gói Enterprise)
+- [ ] Single Sign-On (SAML/Okta / Azure AD) cho doanh nghiệp
+- [ ] Tùy chọn BYOK (Bring Your Own Key) cho LLM để đảm bảo quyền riêng tư dữ liệu nội bộ
+- Done when: Người dùng có thể nâng cấp gói Pro/Team qua Stripe và quản lý thành viên trong tổ chức.
 
 ## Thứ tự khuyến nghị
 1. **6b** (kiểm chứng thật, quyết định có đi tiếp không)
